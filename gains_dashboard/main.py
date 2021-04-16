@@ -4,6 +4,7 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import dash_daq as daq
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -19,7 +20,51 @@ date = df['Date'].copy()
 date = date['Unnamed: 0_level_1']
 # TODO this seems super ugly
 
-def plot_category(date, df, cat, relative=True):
+
+categories = df.columns.get_level_values(0).unique().to_list()
+categories.remove('Date')
+
+user_wants = {'cat': categories[0],
+              'relative': False}
+
+app.layout = html.Div(children=[
+    html.H1(children='Welcome to the GAINZ dashboard'),
+
+    html.Div('Choose exercise'),
+    dcc.Dropdown(
+        id='dropdown_category',
+        options=[{'label': cat, 'value': cat} for cat in categories],
+        value=user_wants['cat']
+    ),
+
+    dcc.Graph(
+        id='graph_gain',
+        figure={}
+    ),
+    html.Br(),
+
+    daq.ToggleSwitch(
+        id='toggle_switch_relative',
+        value=user_wants['relative'],
+        label='display relative increase',
+        labelPosition='bottom'
+    )
+])
+
+
+@app.callback(
+    dash.dependencies.Output('graph_gain', 'figure'),
+    [dash.dependencies.Input('dropdown_category', 'value'),
+     dash.dependencies.Input('toggle_switch_relative', 'value')])
+def redraw_figure(dropdown_cat, toggle_rel):
+    user_wants['cat'] = dropdown_cat
+    user_wants['relative'] = toggle_rel
+    return draw_figure(date, df, user_wants)
+
+
+def draw_figure(date, df, user_wants):
+    cat = user_wants['cat']
+    relative = user_wants['relative']
     cat_data = df[cat]
 
     fig = go.Figure()
@@ -33,24 +78,12 @@ def plot_category(date, df, cat, relative=True):
                                  connectgaps=True))
     y_label = 'relative performance increase' if relative else 'weight'
     fig.update_layout(title=cat,
-                   xaxis_title='Date',
-                   yaxis_title=y_label,
-                legend_title_text='number of reps')
+                      xaxis_title='Date',
+                      yaxis_title=y_label,
+                      legend_title_text='number of reps')
 
     return fig
 
-
-fig = plot_category(date, df, 'Curl', relative=True)
-
-app.layout = html.Div(children=[
-    html.H1(children='Welcome to the GAINZ dashboard'),
-
-    html.Div(children='have fun'),
-    dcc.Graph(
-        id='example-graph',
-        figure=fig
-    )
-])
 
 if __name__ == '__main__':
     app.run_server(debug=True)
