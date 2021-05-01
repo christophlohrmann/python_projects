@@ -10,7 +10,10 @@ import plotly.express as px
 import plotly.subplots
 import plotly.graph_objects as go
 import pandas as pd
+import sqlite3
 import numpy as np
+
+import resources.gain
 
 
 def get_oldest_pr(df_, number):
@@ -40,55 +43,58 @@ def generate_old_gain_table(df, max_rows = 5):
 
 
 
-external_stylesheets =[dbc.themes.BOOTSTRAP] #['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets =[dbc.themes.LITERA] #['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-# get the gain data
-df = pd.read_pickle('./resources/the_gains.pick')
+# get the new_gain data
+sql_conn = sqlite3.connect('./resources/the_gains.db')
+df = pd.read_sql('SELECT * FROM the_gains', sql_conn)
 
 all_types = df['type'].unique().tolist()
-all_goals = df['goal'].unique().tolist()
-
-available_goals = dict()
-for type_ in all_types:
-    available_goals[type_] = df[df['type'] == type_]['goal'].unique().tolist()
-
-user_wants = {'type': all_types[0],
-              'goal': available_goals[all_types[0]],
-              'relative': False}
+all_goals = resources.gain.ALLOWED_GOALS
 
 
-app.layout = html.Div(children=[
-    html.H1(children='Welcome to the GAINZ dashboard'),
+card_graph = dbc.Card([
+    dbc.CardBody([
+        html.H6('Choose exercise', className='card_subtitle'),
+        dcc.Dropdown(
+            id='dropdown_type',
+            options=[{'label': type, 'value': type} for type in all_types],
+            value=all_types[0]
+        ),
 
-    html.Div('Choose exercise'),
-    dcc.Dropdown(
-        id='dropdown_type',
-        options=[{'label': type, 'value': type} for type in all_types],
-        value=user_wants['type']
-    ),
+        html.Br(),
 
-    html.Div('Choose goal'),
-    dcc.Dropdown(
-        id='dropdown_goal'
-    ),
+        html.H6('Choose goal', className='card_subtitle'),
+        dcc.Dropdown(
+            id='dropdown_goal'
+        )]),
 
-    dcc.Graph(
-        id='graph_gain',
-        figure={}
-    ),
-    html.Br(),
+        dcc.Graph(
+            id='graph_gain',
+            figure={}
+        ),
+        html.Br(),
+        daq.ToggleSwitch(
+            id='toggle_switch_relative',
+            value=False,
+            label='display relative increase',
+            labelPosition='bottom')
 
-    daq.ToggleSwitch(
-        id='toggle_switch_relative',
-        value=user_wants['relative'],
-        label='display relative increase',
-        labelPosition='bottom'
-    ),
+])
 
-    html.Div(children=[html.H4(children='Your top 5 oldest gains that could use some work'),
-                       generate_old_gain_table(df, max_rows=5)])
+card_table = dbc.Card([
+    dbc.CardBody([
+        html.H4('Your top 5 oldest gains that could use some work'),
+        html.Br(),
+        generate_old_gain_table(df, max_rows=5)
+    ])
+])
+
+app.layout = html.Div([
+    html.H1('Welcome to the GAINZ dashboard'),
+    dbc.CardDeck([card_graph, card_table])
 ])
 
 y_labels = {'weight': 'weight in kg',
@@ -100,7 +106,8 @@ y_labels = {'weight': 'weight in kg',
 @app.callback(dash.dependencies.Output('dropdown_goal', 'options'),
               dash.dependencies.Input('dropdown_type', 'value'))
 def set_goal_options(type_):
-    return [{'label': goal, 'value': goal} for goal in available_goals[type_]]
+    available_goals = df[df['type'] == type_]['goal'].unique().tolist()
+    return [{'label': goal, 'value': goal} for goal in available_goals]
 
 
 @app.callback(dash.dependencies.Output('dropdown_goal', 'value'),
@@ -115,6 +122,7 @@ def set_goal_default_value(options):
      dash.dependencies.Input('dropdown_goal', 'value'),
      dash.dependencies.Input('toggle_switch_relative', 'value')])
 def redraw_figure(dropdown_type, dropdown_goal, toggle_rel):
+    user_wants = dict()
     user_wants['type'] = dropdown_type
     user_wants['relative'] = toggle_rel
     user_wants['goal'] = dropdown_goal
