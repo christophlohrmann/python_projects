@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import sqlite3
 import numpy as np
+import datetime
 
 import resources.gain
 
@@ -26,24 +27,36 @@ def get_oldest_pr(df_, number):
             df_subtype = df_type[df_type['subtype'] == subtype]
             df_subtype = df_subtype.sort_values(by='date', ascending=False)
             newest = newest.append(df_subtype.iloc[0])
-    newest = newest.sort_values(by='date')
-    return newest.iloc[0:number]
+    oldest = newest.sort_values(by='date')
+    return oldest.iloc[0:number]
 
 
-def generate_old_gain_table(df, max_rows = 5):
-    oldest = get_oldest_pr(df, max_rows)
+def generate_gain_table(df):
     display_cols = ['date', 'type', 'subtype']
     return html.Table([
         html.Thead(
             html.Tr([html.Th(col) for col in display_cols])
         ),
         html.Tbody(
-            [html.Tr([html.Td(oldest.iloc[i][col]) for col in display_cols]) for i in range(max_rows)]
+            [html.Tr([html.Td(row[col]) for col in display_cols]) for _, row in df.iterrows()]
         )])
 
 
+def generate_old_gain_table(df, max_rows):
+    oldest = get_oldest_pr(df, max_rows)
+    return generate_gain_table(oldest)
 
-external_stylesheets =[dbc.themes.LITERA] #['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+def generate_new_gain_table(df, max_rows):
+    sorted_df = df.sort_values(by='date', ascending=False)
+    return generate_gain_table(sorted_df.iloc[0:max_rows])
+
+def append_new_gain_to_database(new_gain, conn):
+    df = new_gain.to_data_frame()
+    df.to_sql('the_gains', conn, if_exists = 'append', index = False)
+
+
+external_stylesheets = [dbc.themes.LITERA]  # ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
@@ -53,7 +66,6 @@ df = pd.read_sql('SELECT * FROM the_gains', sql_conn)
 
 all_types = df['type'].unique().tolist()
 all_goals = resources.gain.ALLOWED_GOALS
-
 
 card_graph = dbc.Card([
     dbc.CardBody([
@@ -68,33 +80,125 @@ card_graph = dbc.Card([
 
         html.H6('Choose goal', className='card_subtitle'),
         dcc.Dropdown(
-            id='dropdown_goal'
+            id='dropdown_goal',
+            clearable=False
         )]),
 
-        dcc.Graph(
-            id='graph_gain',
-            figure={}
-        ),
-        html.Br(),
-        daq.ToggleSwitch(
-            id='toggle_switch_relative',
-            value=False,
-            label='display relative increase',
-            labelPosition='bottom')
+    dcc.Graph(
+        id='graph_gain',
+        figure={}
+    ),
+    html.Br(),
+    daq.ToggleSwitch(
+        id='toggle_switch_relative',
+        value=False,
+        label=['display absolute values', 'display relative increase'],
+        labelPosition='bottom')
 
 ])
 
 card_table = dbc.Card([
     dbc.CardBody([
+        html.H4('Your top 5 newest gains'),
+        html.Br(),
+        generate_new_gain_table(df, max_rows=5),
+        html.Br(),
         html.H4('Your top 5 oldest gains that could use some work'),
         html.Br(),
         generate_old_gain_table(df, max_rows=5)
+
     ])
 ])
 
+card_submit = dbc.Card([
+    dbc.CardBody([
+        html.H4('Submit a new gain from previous types'),
+        html.Br(),
+        html.H6('Exercise type'),
+        dcc.Dropdown(
+            id='dropdown_form_old_type',
+            options=[{'label': type, 'value': type} for type in all_types],
+            clearable=False),
+        html.Br(),
+        html.H6('Exercise subtype'),
+        dcc.Dropdown(
+            id='dropdown_form_old_subtype',
+            clearable=False),
+        html.Br(),
+        html.H6('goal'),
+        dcc.Dropdown(
+            id='dropdown_form_old_goal',
+            options=[{'label': goal, 'value': goal} for goal in all_goals],
+            clearable=False),
+        html.Br(),
+        html.H6('weight in kg'),
+        dcc.Input(
+            id='input_form_old_weight',
+            value=0.,
+            type='number',
+            placeholder='weight'
+        ),
+        html.Br(),
+        html.H6('number of repetitions'),
+        dcc.Input(
+            id='input_form_old_reps',
+            value=0,
+            type='number',
+            placeholder='number or reps',
+        ),
+        html.Br(),
+        html.H6('time in seconds'),
+        dcc.Input(
+            id='input_form_old_time',
+            value=0.,
+            type='number',
+            placeholder='time in seconds',
+        ),
+        html.Br(),
+        html.Button(id='button_form_old_submit',
+                    n_clicks=0,
+                    children='Submit'),
+        html.Br(),
+        html.Div(id='output_submit_status')
+
+    ])
+])
+
+
+@app.callback(dash.dependencies.Output('dropdown_form_old_subtype', 'options'),
+              dash.dependencies.Input('dropdown_form_old_type', 'value'))
+def set_subtype_options(type_):
+    # don't use global df
+    available_subtypes = df[df['type'] == type_]['subtype'].unique().tolist()
+    return [{'label': subtype, 'value': subtype} for subtype in available_subtypes]
+
+@app.callback(dash.dependencies.Output('output_submit_status', 'children'),
+              dash.dependencies.Input('button_form_old_submit','n_clicks'),
+              dash.dependencies.State('dropdown_form_old_type', 'value'),
+              dash.dependencies.State('dropdown_form_old_subtype', 'value'),
+              dash.dependencies.State('dropdown_form_old_goal', 'value'),
+              dash.dependencies.State('input_form_old_weight', 'value'),
+              dash.dependencies.State('input_form_old_reps', 'value'),
+              dash.dependencies.State('input_form_old_time', 'value'))
+def handle_submit_update_status(n_clicks, type_, subtype,goal, weight, reps, time):
+    if n_clicks>0:
+        new_gain = resources.gain.Gain(type_,
+                                       datetime.date.today(),
+                                       subtype=subtype,
+                                       goal=goal,
+                                       weight=weight,
+                                       reps=reps,
+                                       time=time)
+        sql_conn = sqlite3.connect('./resources/the_gains.db')
+        append_new_gain_to_database(new_gain, sql_conn)
+        return f'new gain submitted at {datetime.datetime.now()}'
+    else:
+        return ''
+
+
 app.layout = html.Div([
     html.H1('Welcome to the GAINZ dashboard'),
-    dbc.CardDeck([card_graph, card_table])
+    dbc.CardDeck([card_graph, card_table, card_submit])
 ])
 
 y_labels = {'weight': 'weight in kg',
