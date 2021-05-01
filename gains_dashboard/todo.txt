@@ -1,8 +1,9 @@
-# better format for gains (type, for-type [weight, reps, time], weight, reps, time, date) for each gain
-## with that, displaying the different types should be easy
+# do not load the full db every time, instead fetch only the parts of data that are needed
 
-# max time and min time difference
+# subtype should already define all variables except the goal type
 
-# slap the gains into a sqlite database
+# feature: delete last added entry
 
-# add new gain from the dashboard
+# reload the tables if the database is updated
+
+# backup mechanism for the gains!

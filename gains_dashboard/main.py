@@ -7,11 +7,8 @@ import dash_html_components as html
 import dash_daq as daq
 import dash_bootstrap_components as dbc
 import plotly.express as px
-import plotly.subplots
-import plotly.graph_objects as go
 import pandas as pd
 import sqlite3
-import numpy as np
 import datetime
 
 import resources.gain
@@ -33,13 +30,17 @@ def get_oldest_pr(df_, number):
 
 def generate_gain_table(df):
     display_cols = ['date', 'type', 'subtype']
-    return html.Table([
+    return dbc.Table([
         html.Thead(
             html.Tr([html.Th(col) for col in display_cols])
         ),
         html.Tbody(
             [html.Tr([html.Td(row[col]) for col in display_cols]) for _, row in df.iterrows()]
-        )])
+        )],
+        bordered=True,
+    hover=True,
+    responsive=True,
+    striped=True)
 
 
 def generate_old_gain_table(df, max_rows):
@@ -51,12 +52,13 @@ def generate_new_gain_table(df, max_rows):
     sorted_df = df.sort_values(by='date', ascending=False)
     return generate_gain_table(sorted_df.iloc[0:max_rows])
 
+
 def append_new_gain_to_database(new_gain, conn):
     df = new_gain.to_data_frame()
-    df.to_sql('the_gains', conn, if_exists = 'append', index = False)
+    df.to_sql('the_gains', conn, if_exists='append', index=False)
 
 
-external_stylesheets = [dbc.themes.LITERA]  # ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets = [dbc.themes.SPACELAB]  # ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
@@ -73,7 +75,8 @@ card_graph = dbc.Card([
         dcc.Dropdown(
             id='dropdown_type',
             options=[{'label': type, 'value': type} for type in all_types],
-            value=all_types[0]
+            value=all_types[0],
+            clearable=False
         ),
 
         html.Br(),
@@ -112,56 +115,63 @@ card_table = dbc.Card([
 
 card_submit = dbc.Card([
     dbc.CardBody([
-        html.H4('Submit a new gain from previous types'),
-        html.Br(),
-        html.H6('Exercise type'),
-        dcc.Dropdown(
-            id='dropdown_form_old_type',
-            options=[{'label': type, 'value': type} for type in all_types],
-            clearable=False),
-        html.Br(),
-        html.H6('Exercise subtype'),
-        dcc.Dropdown(
-            id='dropdown_form_old_subtype',
-            clearable=False),
-        html.Br(),
-        html.H6('goal'),
-        dcc.Dropdown(
-            id='dropdown_form_old_goal',
-            options=[{'label': goal, 'value': goal} for goal in all_goals],
-            clearable=False),
-        html.Br(),
-        html.H6('weight in kg'),
-        dcc.Input(
-            id='input_form_old_weight',
-            value=0.,
-            type='number',
-            placeholder='weight'
-        ),
-        html.Br(),
-        html.H6('number of repetitions'),
-        dcc.Input(
-            id='input_form_old_reps',
-            value=0,
-            type='number',
-            placeholder='number or reps',
-        ),
-        html.Br(),
-        html.H6('time in seconds'),
-        dcc.Input(
-            id='input_form_old_time',
-            value=0.,
-            type='number',
-            placeholder='time in seconds',
-        ),
-        html.Br(),
-        html.Button(id='button_form_old_submit',
-                    n_clicks=0,
-                    children='Submit'),
+        html.H4('Submit a new gain'),
+        dbc.Form([
+            dbc.FormGroup([
+                dbc.Label('Exercise type'),
+                dcc.Dropdown(
+                    id='dropdown_form_old_type',
+                    options=[{'label': type, 'value': type} for type in all_types],
+                    clearable=False)
+            ]),
+            dbc.FormGroup([
+                dbc.Label('Exercise subtype'),
+                dcc.Dropdown(
+                    id='dropdown_form_old_subtype',
+                    clearable=False)
+            ]),
+            dbc.FormGroup([
+                dbc.Label('goal'),
+                dcc.Dropdown(
+                    id='dropdown_form_old_goal',
+                    options=[{'label': goal, 'value': goal} for goal in all_goals],
+                    clearable=False)
+            ]),
+            dbc.FormGroup([
+                dbc.Label('Weight in kg'),
+                dbc.Input(
+                    id='input_form_old_weight',
+                    value=0.,
+                    type='number',
+                    placeholder='weight'
+                )
+            ]),
+            dbc.FormGroup([
+                dbc.Label('number of repetitions'),
+                dbc.Input(
+                    id='input_form_old_reps',
+                    value=0,
+                    type='number',
+                    placeholder='number or reps',
+                )
+            ]),
+            dbc.FormGroup([
+                dbc.Label('time in seconds'),
+                dbc.Input(
+                    id='input_form_old_time',
+                    value=0.,
+                    type='number',
+                    placeholder='time in seconds',
+                )
+            ]),
+            html.Br(),
+            dbc.Button(id='button_form_old_submit',
+                       n_clicks=0,
+                       children='Submit')
+        ]),#end form
         html.Br(),
         html.Div(id='output_submit_status')
-
-    ])
+    ]) #end card body
 ])
 
 
@@ -172,16 +182,17 @@ def set_subtype_options(type_):
     available_subtypes = df[df['type'] == type_]['subtype'].unique().tolist()
     return [{'label': subtype, 'value': subtype} for subtype in available_subtypes]
 
+
 @app.callback(dash.dependencies.Output('output_submit_status', 'children'),
-              dash.dependencies.Input('button_form_old_submit','n_clicks'),
+              dash.dependencies.Input('button_form_old_submit', 'n_clicks'),
               dash.dependencies.State('dropdown_form_old_type', 'value'),
               dash.dependencies.State('dropdown_form_old_subtype', 'value'),
               dash.dependencies.State('dropdown_form_old_goal', 'value'),
               dash.dependencies.State('input_form_old_weight', 'value'),
               dash.dependencies.State('input_form_old_reps', 'value'),
               dash.dependencies.State('input_form_old_time', 'value'))
-def handle_submit_update_status(n_clicks, type_, subtype,goal, weight, reps, time):
-    if n_clicks>0:
+def handle_submit_update_status(n_clicks, type_, subtype, goal, weight, reps, time):
+    if n_clicks > 0:
         new_gain = resources.gain.Gain(type_,
                                        datetime.date.today(),
                                        subtype=subtype,
@@ -191,7 +202,8 @@ def handle_submit_update_status(n_clicks, type_, subtype,goal, weight, reps, tim
                                        time=time)
         sql_conn = sqlite3.connect('./resources/the_gains.db')
         append_new_gain_to_database(new_gain, sql_conn)
-        return f'new gain submitted at {datetime.datetime.now()}'
+        return dbc.Alert(f'new gain submitted at {datetime.datetime.now()}',
+                         color='success')
     else:
         return ''
 
