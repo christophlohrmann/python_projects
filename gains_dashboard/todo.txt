@@ -1,0 +1,8 @@
+# better format for gains (type, for-type [weight, reps, time], weight, reps, time, date) for each gain
+## with that, displaying the different types should be easy
+
+# max time and min time difference
+
+# slap the gains into a sqlite database
+
+# add new gain from the dashboard

@@ -4,8 +4,9 @@ import numpy as np
 df = pd.read_excel('./the_gains.ods', engine='odf', header=[0, 1])
 
 class Gain():
-    def __init__(self, type_, date, goal = 'weight', weight = 0., reps = 1, time = np.nan):
+    def __init__(self, type_, date, subtype = 'misc', goal = 'weight', weight = 0., reps = 1, time = np.nan):
         self.type = type_
+        self.subtype = subtype
         self.date = date
         self.goal = goal
         self.weight = weight
@@ -38,16 +39,16 @@ for type, subtype in df.columns.values:
         continue
 
     for idx, entry in valid_entries.iterrows():
-        print(entry["Date"])
         date = pd.to_datetime(entry["Date"], format = "%d.%m.%Y")
         value = entry[(type, subtype)]
 
-        gain = Gain(type, date)
+        gain = Gain(type, date, subtype=subtype)
         # now sort it in correctly
         if isinstance(subtype, int):
             gain.goal = 'weight'
             gain.weight = value
             gain.reps = subtype
+            gain.subtype = f'{subtype} rep max'
         elif isinstance(subtype, str):
             if subtype.startswith('Reps with'):
                 gain.goal = 'reps'
