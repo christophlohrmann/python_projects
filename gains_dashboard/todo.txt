@@ -1,9 +1,14 @@
 # do not load the full db every time, instead fetch only the parts of data that are needed
 
-# subtype should already define all variables except the goal type
-
-# feature: delete last added entry
-
-# reload the tables if the database is updated
+# subtype should already define all variables except the goal type. Make a mask to create a new type or subtype
 
 # backup mechanism for the gains!
+
+# better folder structure -> move Gain class up, create resource folder upon first creation of the database
+
+# switch sqlite3 for gemresql or howerver it was called
+
+# hook up this bad boy to heroku
+
+# implement some sort of login/ user check to prevent spam
+

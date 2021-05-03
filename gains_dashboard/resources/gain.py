@@ -11,7 +11,8 @@ class Gain():
         self.subtype = subtype
         if not isinstance(date, datetime.date):
             raise TypeError(f'type of date [{type(date)}] must be datetime.date')
-        self.date = date
+        # when converting to sql entry, dates will be converted to strings anyways
+        self.date = str(date)
         if goal not in ALLOWED_GOALS:
             raise ValueError(f'goal {goal} is not in {ALLOWED_GOALS}')
         self.goal = goal
