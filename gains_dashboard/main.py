@@ -224,7 +224,15 @@ def draw_figure(df, user_wants):
     return fig
 
 
+navbar = dbc.NavbarSimple(
+    brand="The GAINZ dashboard",
+    brand_href="#",
+    dark=True)
+
+
 card_graph = dbc.Card([
+    dbc.CardHeader(
+        html.H4('Time series Graphs')),
     dbc.CardBody([
         html.H6('Choose exercise', className='card_subtitle'),
         dcc.Dropdown(
@@ -256,13 +264,15 @@ card_graph = dbc.Card([
 ])
 
 card_table = dbc.Card([
+    dbc.CardHeader(
+        html.H4('Data table inspection')),
     dbc.CardBody([
-        html.H4('Your top 5 newest gains'),
+        html.H5('Your top 5 newest gains'),
         html.Br(),
         dbc.Table(id='table_newest_gains'),
         #          children=generate_new_gain_table(df_gains, max_rows=5)),
         html.Br(),
-        html.H4('Your top 5 oldest gains that could use some work'),
+        html.H5('Your top 5 oldest gains that could use some work'),
         html.Br(),
         dbc.Table(id='table_oldest_gains')  # ,
         # children=generate_old_gain_table(df_gains, max_rows=5))
@@ -271,8 +281,9 @@ card_table = dbc.Card([
 ])
 
 card_submit = dbc.Card([
+    dbc.CardHeader(
+        html.H4('Submit a new gain')),
     dbc.CardBody([
-        html.H4('Submit a new gain'),
         dbc.Form([
             dbc.FormGroup([
                 dbc.Label('Exercise type'),
@@ -314,9 +325,21 @@ card_submit = dbc.Card([
     ])  # end card body
 ])
 
+card_new_series = dbc.Card([
+    dbc.CardBody([
+        html.H4('Define a new subtype')
+    ])
+])
+
 app.layout = html.Div([
-    html.H1('Welcome to the GAINZ dashboard'),
-    dbc.CardGroup([card_graph, card_table, card_submit])
+    navbar,
+    html.Br(),
+    dbc.CardDeck([card_graph,
+                   card_table,
+                   dbc.Col([dbc.Row(card_submit),
+                            dbc.Row(card_new_series)],
+                           width=4)
+                  ])
 ])
 
 if __name__ == '__main__':
