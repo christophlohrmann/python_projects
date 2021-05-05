@@ -19,15 +19,17 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 # get the new_gain data
 sql_conn = sqlite3.connect('./resources/the_gains.db')
-df = pd.read_sql('SELECT * FROM the_gains', sql_conn)
+df_gains = pd.read_sql('SELECT * FROM the_gains', sql_conn)
+df_series = pd.read_sql('SELECT * FROM series', sql_conn)
 
-all_types = df['type'].unique().tolist()
+all_types = df_gains['type'].unique().tolist()
 all_goals = resources.gain.ALLOWED_GOALS
 
 y_labels = {'weight': 'weight in kg',
             'reps': 'number of repetitions',
             'time': 'time in seconds',
             'goal_relative': 'relative performance increase'}
+
 
 def generate_gain_table(df):
     return dbc.Table.from_dataframe(df[['date', 'type', 'subtype']],
@@ -37,20 +39,29 @@ def generate_gain_table(df):
                                     striped=True)
 
 
+def get_goal_from_type_subtype(type_, subtype):
+    # probably the type sort is not even needed, the goal can be deduced from the subtype only
+    series = df_series[df_series['type'] == type_]
+    series = series[series['name'] == subtype]
+    goal = series['goal'].iloc[0]
+    return goal
+
+
 def append_new_gain_to_df_and_db(new_gain, conn):
-    # TODO keep this only as long as we work with the df instead of querying the data from the db directly
-    global df
-    df = df.append(new_gain.to_data_frame(), ignore_index=True)
-    df.to_sql('the_gains', conn, if_exists='append', index=False)
-    return df
+    # TODO keep this only as long as we work with the df_gains instead of querying the data from the db directly
+    global df_gains
+    df_gains = df_gains.append(new_gain.to_data_frame(), ignore_index=True)
+    df_gains.to_sql('the_gains', conn, if_exists='append', index=False)
+    return df_gains
 
 
 def delete_last_row_from_df_and_db(conn):
     # TODO this is literally the most inefficient way to do this.
     # should be replaced by immediate action on the database, not through dataframe
-    df.sort_index(inplace=True)
-    df.drop(df.tail(1).index, inplace=True)
-    df.to_sql('the_gains', conn, if_exists='replace', index=False)
+    df_gains.sort_index(inplace=True)
+    df_gains.drop(df_gains.tail(1).index, inplace=True)
+    df_gains.to_sql('the_gains', conn, if_exists='replace', index=False)
+
 
 def get_oldest_pr(df_, number):
     # get the newest entry of all subtypes
@@ -69,30 +80,45 @@ def get_oldest_pr(df_, number):
 @app.callback(dash.dependencies.Output('dropdown_form_old_subtype', 'options'),
               dash.dependencies.Input('dropdown_form_old_type', 'value'))
 def set_subtype_options(type_):
-    # don't use global df
-    available_subtypes = df[df['type'] == type_]['subtype'].unique().tolist()
+    # don't use global df_gains
+    available_subtypes = df_gains[df_gains['type'] == type_]['subtype'].unique().tolist()
     return [{'label': subtype, 'value': subtype} for subtype in available_subtypes]
+
+
+@app.callback(dash.dependencies.Output('label_input_gain_goal_value', 'children'),
+              dash.dependencies.Input('dropdown_form_old_subtype', 'value'),
+              dash.dependencies.State('dropdown_form_old_type', 'value'))
+def set_input_label_options(subtype, type_):
+    if subtype is None:
+        return 'select subtype before entering value'
+    else:
+        goal = get_goal_from_type_subtype(type_, subtype)
+        return 'Enter ' + y_labels[goal]
 
 
 @app.callback(dash.dependencies.Output('output_submit_status', 'children'),
               dash.dependencies.Input('button_form_old_submit', 'n_clicks'),
               dash.dependencies.State('dropdown_form_old_type', 'value'),
               dash.dependencies.State('dropdown_form_old_subtype', 'value'),
-              dash.dependencies.State('dropdown_form_old_goal', 'value'),
-              dash.dependencies.State('input_form_old_weight', 'value'),
-              dash.dependencies.State('input_form_old_reps', 'value'),
-              dash.dependencies.State('input_form_old_time', 'value'))
-def handle_submit_update_status(n_clicks, type_, subtype, goal, weight, reps, time):
+              dash.dependencies.State('input_form_old_goal_value', 'value'), )
+def handle_submit_update_status(n_clicks, type_, subtype, goal_value):
     if n_clicks > 0:
         print('submit requested')
+        goal = get_goal_from_type_subtype(type_, subtype)
+        non_goal = all_goals.copy()
+        non_goal.remove(goal)
+
         try:
             new_gain = resources.gain.Gain(type_,
                                            datetime.date.today(),
                                            subtype=subtype,
-                                           goal=goal,
-                                           weight=weight,
-                                           reps=reps,
-                                           time=time)
+                                           goal=goal)
+            new_gain.__setattr__(goal, goal_value)
+            series = df_series[df_series['type' == type_]]
+            series = series[series['name'] == subtype]
+            for attr in non_goal:
+                new_gain.__setattr__(attr, series[attr].iloc[0])
+
             sql_conn = sqlite3.connect('./resources/the_gains.db')
             append_new_gain_to_df_and_db(new_gain, sql_conn)
 
@@ -128,8 +154,8 @@ def handle_remove_update_status(n_clicks):
               dash.dependencies.Input('button_form_old_remove', 'n_clicks'))
 def generate_old_gain_table(n_clicks_submit, n_clicks_remove, max_rows=5):
     print('generating old table')
-    disp_rows = min([max_rows, len(df.index)])
-    oldest = get_oldest_pr(df, disp_rows)
+    disp_rows = min([max_rows, len(df_gains.index)])
+    oldest = get_oldest_pr(df_gains, disp_rows)
     return generate_gain_table(oldest)
 
 
@@ -138,15 +164,15 @@ def generate_old_gain_table(n_clicks_submit, n_clicks_remove, max_rows=5):
               dash.dependencies.Input('button_form_old_remove', 'n_clicks'))
 def generate_new_gain_table(n_clicks_submit, n_clicks_remove, max_rows=5):
     print('generating new table')
-    disp_rows = min([max_rows, len(df.index)])
-    sorted_df = df.sort_values(by='date', ascending=False).copy()
+    disp_rows = min([max_rows, len(df_gains.index)])
+    sorted_df = df_gains.sort_values(by='date', ascending=False).copy()
     return generate_gain_table(sorted_df.head(disp_rows))
 
 
 @app.callback(dash.dependencies.Output('dropdown_goal', 'options'),
               dash.dependencies.Input('dropdown_type', 'value'))
 def set_goal_options(type_):
-    available_goals = df[df['type'] == type_]['goal'].unique().tolist()
+    available_goals = df_gains[df_gains['type'] == type_]['goal'].unique().tolist()
     return [{'label': goal, 'value': goal} for goal in available_goals]
 
 
@@ -168,7 +194,7 @@ def redraw_figure(dropdown_type, dropdown_goal, toggle_rel, n_clicks_submit, n_c
     user_wants['type'] = dropdown_type
     user_wants['relative'] = toggle_rel
     user_wants['goal'] = dropdown_goal
-    return draw_figure(df, user_wants)
+    return draw_figure(df_gains, user_wants)
 
 
 def draw_figure(df, user_wants):
@@ -234,12 +260,12 @@ card_table = dbc.Card([
         html.H4('Your top 5 newest gains'),
         html.Br(),
         dbc.Table(id='table_newest_gains'),
-        #          children=generate_new_gain_table(df, max_rows=5)),
+        #          children=generate_new_gain_table(df_gains, max_rows=5)),
         html.Br(),
         html.H4('Your top 5 oldest gains that could use some work'),
         html.Br(),
         dbc.Table(id='table_oldest_gains')  # ,
-        # children=generate_old_gain_table(df, max_rows=5))
+        # children=generate_old_gain_table(df_gains, max_rows=5))
 
     ])
 ])
@@ -261,38 +287,13 @@ card_submit = dbc.Card([
                     id='dropdown_form_old_subtype',
                     clearable=False)
             ]),
+            # goal is automatically selected
             dbc.FormGroup([
-                dbc.Label('goal'),
-                dcc.Dropdown(
-                    id='dropdown_form_old_goal',
-                    options=[{'label': goal, 'value': goal} for goal in all_goals],
-                    clearable=False)
-            ]),
-            dbc.FormGroup([
-                dbc.Label('Weight in kg'),
+                dbc.Label(id='label_input_gain_goal_value'),
                 dbc.Input(
-                    id='input_form_old_weight',
-                    value=0.,
+                    id='input_form_old_goal_value',
                     type='number',
-                    placeholder='weight'
-                )
-            ]),
-            dbc.FormGroup([
-                dbc.Label('number of repetitions'),
-                dbc.Input(
-                    id='input_form_old_reps',
-                    value=0,
-                    type='number',
-                    placeholder='number or reps',
-                )
-            ]),
-            dbc.FormGroup([
-                dbc.Label('time in seconds'),
-                dbc.Input(
-                    id='input_form_old_time',
-                    value=0.,
-                    type='number',
-                    placeholder='time in seconds',
+                    placeholder='value'
                 )
             ]),
             html.Br(),
@@ -310,13 +311,12 @@ card_submit = dbc.Card([
             html.Br(),
             html.Div(id='output_remove_status')
         ]),  # end form
-
     ])  # end card body
 ])
 
 app.layout = html.Div([
     html.H1('Welcome to the GAINZ dashboard'),
-    dbc.CardDeck([card_graph, card_table, card_submit])
+    dbc.CardGroup([card_graph, card_table, card_submit])
 ])
 
 if __name__ == '__main__':

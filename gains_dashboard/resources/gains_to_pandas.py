@@ -54,7 +54,7 @@ for type, subtype in df_gains.columns.values:
 
             elif subtype.startswith('Reps in'):
                 maybe_new_series = gain.RepSeries(type, time = float(subtype.lstrip('Reps in ')))
-                new_gain.goal = new_gain.goal
+                new_gain.goal = maybe_new_series.goal
                 new_gain.reps = value
                 new_gain.weight = maybe_new_series.weight
                 new_gain.time = maybe_new_series.time
