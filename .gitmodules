@@ -1,0 +1,6 @@
+[submodule "gainz_dashboard"]
+	path = gainz_dashboard
+	url = https://github.com/christophlohrmann/gainz_dashboard.git
+[submodule "snake"]
+	path = snake
+	url = https://github.com/christophlohrmann/snake.git
