@@ -1,11 +1,11 @@
 import numpy as np
-from numpy.random import default_rng
+
 import string
 
 
 def gen_permutor_lists(n_elements: int, seed: int):
     elements = range(n_elements)
-    rng = default_rng(seed)
+    rng = np.random.default_rng(seed)
     perm_forward = rng.permutation(elements).tolist()
     perm_backward = [perm_forward.index(el) for el in elements]
 
@@ -14,7 +14,7 @@ def gen_permutor_lists(n_elements: int, seed: int):
 
 def gen_swap_dict(elements: list, n_swaps: int, seed):
     elements = elements.copy()
-    rng = default_rng(seed)
+    rng = np.random.default_rng(seed)
 
     # random input jacks of the board
     firsts = rng.choice(elements, size=n_swaps, replace=False)
@@ -49,7 +49,7 @@ class Rotor:
 
         # who is connected to who at pos 0:
         positions = np.arange(self.n_positions)
-        rng = default_rng(seed)
+        rng = np.random.default_rng(seed)
         connected_forward = rng.permutation(positions)
         connected_backwards = np.array([np.where(connected_forward == pos) for pos in positions]).squeeze()
 
