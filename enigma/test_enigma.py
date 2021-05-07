@@ -43,19 +43,20 @@ class EnigmaTest(ut.TestCase):
 
     def test_encrypt_decrypt(self):
         plugboard = enigma.Swapper(n_positions=self.n_chars, n_swaps=10, seed=41)
-        rotor = enigma.Rotor(n_positions=self.n_chars, seed=4)
-        reflector = enigma.Swapper(n_positions=self.n_chars, n_swaps=self.n_chars//2, seed=3)
+        rotor_seeds = [21, 32, 34]
+        rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
+        reflector = enigma.Swapper(n_positions=self.n_chars, n_swaps=self.n_chars // 2, seed=3)
 
-        encoder = enigma.Enigma([rotor], plugboard, reflector, charset=self.charset)
-        encoder.set_rotor_positions([3])
+        encoder = enigma.Enigma(rotors, plugboard, reflector, charset=self.charset)
+        rotor_positions = [3, 4, 7]
 
+        encoder.set_rotor_positions(rotor_positions)
         encoded_message = encoder.encode_message(self.test_message)
         self.assertNotEqual(encoded_message, self.test_message)
 
-        encoder.set_rotor_positions([3])
+        encoder.set_rotor_positions(rotor_positions)
         decoded_message = encoder.encode_message(encoded_message)
         self.assertEqual(decoded_message, self.test_message)
-
 
 
 if __name__ == '__main__':
