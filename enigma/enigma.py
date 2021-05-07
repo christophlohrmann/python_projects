@@ -3,7 +3,7 @@ from numpy.random import default_rng
 import string
 
 
-def gen_permutor_lists(n_elements, seed):
+def gen_permutor_lists(n_elements: int, seed: int):
     elements = range(n_elements)
     rng = default_rng(seed)
     perm_forward = rng.permutation(elements).tolist()
@@ -15,74 +15,80 @@ def gen_permutor_lists(n_elements, seed):
 def gen_swap_dict(elements: list, n_swaps: int, seed):
     elements = elements.copy()
     rng = default_rng(seed)
+
+    # random input jacks of the board
     firsts = rng.choice(elements, size=n_swaps, replace=False)
     # remove them from the list
     for el in firsts:
         elements.remove(el)
+
+    # random output jacks
     seconds = rng.choice(elements, size=n_swaps, replace=False)
+    # again remove from the list
+    for el in seconds:
+        elements.remove(el)
+
+    # and the ports that are not conected
+    leftover = elements
+
     swap_dict = dict()
     for first, second in zip(firsts, seconds):
         swap_dict[first] = second
         swap_dict[second] = first
+    for el in leftover:
+        swap_dict[el] = el
     return swap_dict
 
 
 class Rotor:
     def __init__(self, n_positions: int = 26, seed: int = 0):
-        """
-        One single rotation permutor in the enigma machine
-        :param n_positions: how many positions there are
-        :param seed:
-        """
         self.seed = seed
         self.n_positions = n_positions
 
         self.position = 0
 
-        perm_forward, perm_backward = gen_permutor_lists(self.n_positions, self.seed)
-        self.perm_forward = perm_forward
-        self.perm_backward = perm_backward
+        # who is connected to who at pos 0:
+        positions = np.arange(self.n_positions)
+        rng = default_rng(seed)
+        connected_forward = rng.permutation(positions)
+        connected_backwards = np.array([np.where(connected_forward == pos) for pos in positions]).squeeze()
+
+        # the actual wiring, i.e. the relative difference between the connections on the in-side and the out-side
+        self.forward_adds = connected_forward - positions
+        self.backward_adds = connected_backwards - positions
 
     def rotate_return_carryover(self, n_steps: int) -> int:
-        div, mod = np.divmod(self.position + n_steps)
+        div, mod = np.divmod(self.position + n_steps, self.n_positions)
         self.position = mod
         return int(div)
 
-    def set_position(self, pos):
-        self.position = pos
+    def set_position(self, pos: int):
+        self.position = pos % self.n_positions
 
-    def get_permuted_output_forward(self, input_: int):
-        idx = np.mod(input_ + self.position, self.n_positions)
-        return self.perm_forward[idx]
+    def get_permuted_output_forward(self, input_: int) -> int:
+        add_idx = (input_ + self.position) % self.n_positions
+        return int((input_ + self.forward_adds[add_idx]) % self.n_positions)
 
-    def get_permuted_output_backward(self, input_: int):
-        idx = np.mod(input_ + self.position, self.n_positions)
-        return self.perm_backward[idx]
+    def get_permuted_output_backward(self, input_: int) -> int:
+        add_idx = (input_ + self.position) % self.n_positions
+        return int((input_ + self.backward_adds[add_idx]) % self.n_positions)
 
 
-class Reflector:
-    def __init__(self, n_positions: int):
+class Swapper:
+    def __init__(self, n_positions: int = 26, n_swaps: int = 10, seed: int = 0):
+        assert n_swaps <= n_positions // 2
         self.n_positions = n_positions
-
-    def get_reflected_output(self, input_: int):
-        return input_
-
-
-class PlugBoard:
-    def __init__(self, n_characters: int = 26, n_swaps: int = 10, seed: int = 0):
-        assert n_swaps <= n_characters // 2
-        self.n_characters = n_characters
         self.n_swaps = n_swaps
         self.seed = seed
 
-        self.swap_dict = gen_swap_dict(list(range(n_characters)), self.n_swaps, self.seed)
+        self.swap_dict = gen_swap_dict(list(range(n_positions)), self.n_swaps, self.seed)
 
-    def get_output(self, input_: int):
+    def get_output(self, input_: int) -> int:
         return self.swap_dict[input_]
 
 
 class Enigma:
-    def __init__(self, rotors, plugboard: PlugBoard, reflector: Reflector, charset: str = string.ascii_uppercase):
+    def __init__(self, rotors, plugboard: Swapper, reflector: Swapper, charset: str = string.ascii_uppercase):
         self.charset = charset
         n_chars = len(charset)
 
@@ -95,7 +101,7 @@ class Enigma:
             raise ValueError('rotors do not have same number of positions as the chosen character set')
         self.rotors = rotors
 
-        if not plugboard.n_characters == n_chars:
+        if not plugboard.n_positions == n_chars:
             raise ValueError('plug board does not have the same number of positions as the character set')
         self.plug_board = plugboard
 
@@ -108,7 +114,7 @@ class Enigma:
             assert pos < rot.n_positions
             rot.position = pos
 
-    def encode_message(self, input_: str):
+    def encode_message(self, input_: str) -> str:
         input_ints = [self.char_to_number_map[char] for char in input_]
 
         output = str()
@@ -119,9 +125,11 @@ class Enigma:
             for rot in self.rotors:
                 rot_step = rot.rotate_return_carryover(rot_step)
                 number = rot.get_permuted_output_forward(number)
-            number = self.reflector.get_reflected_output(number)
+            number = self.reflector.get_output(number)
             for rot in reversed(self.rotors):
-                number = rot.get_permuted_output_bactward(number)
+                number = rot.get_permuted_output_backward(number)
             number = self.plug_board.get_output(number)
 
             output += self.charset[number]
+
+        return output
