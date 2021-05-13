@@ -75,13 +75,9 @@ class Rotor:
 
 
 class Swapper:
-    def __init__(self, n_positions: int = 26, n_swaps: int = 10, seed: int = 0):
-        assert n_swaps <= n_positions // 2
+    def __init__(self, n_positions: int = 26):
         self.n_positions = n_positions
-        self.n_swaps = n_swaps
-        self.seed = seed
-        # TODO implement manual setting of the swaps. random configurations should be an auxiliary
-        self.swap_dict = gen_swap_dict(list(range(n_positions)), self.n_swaps, self.seed)
+        self.swap_dict = gen_swap_dict(list(range(self.n_positions)), 0, 0)
 
     def set_element_swap(self, e1: int, e2: int):
         self.swap_dict[e1] = e2
@@ -93,6 +89,10 @@ class Swapper:
 
     def get_output(self, input_: int) -> int:
         return self.swap_dict[input_]
+
+    def assign_random_swaps(self, n_swaps: int, seed: int):
+        assert n_swaps <= self.n_positions // 2
+        self.swap_dict = gen_swap_dict(list(range(self.n_positions)), n_swaps, seed)
 
 
 class Enigma:

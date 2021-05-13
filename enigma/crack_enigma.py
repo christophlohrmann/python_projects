@@ -54,10 +54,10 @@ class PairLikelihoodScorer(TextScorerBase):
 
 
 def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper, scorer: TextScorerBase,
-                   charset=string.ascii_lowercase, debug_msg=False):
+                   charset=string.ascii_lowercase, disable_tqdm = False):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
-    decoder_plugboard = enigma.Swapper(n_positions=n_chars, n_swaps=0)
+    decoder_plugboard = enigma.Swapper(n_positions=n_chars)
     decoder_enigma = enigma.Enigma(copy.deepcopy(rotors),
                                    decoder_plugboard,
                                    copy.deepcopy(reflector),
@@ -68,9 +68,9 @@ def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.S
     highscore = -np.inf
     best_pos = 3 * [0]
 
-    # Parallel?
+    # TODO Parallel?
     positions = iter(MultiindexIiterator(len(rotors), n_chars))
-    for pos in tqdm.tqdm(positions):
+    for pos in tqdm.tqdm(positions, disable=disable_tqdm):
         decoder_enigma.set_rotor_positions(pos)
         decoder_try = decoder_enigma.encode_message(encrypted_message)
         score = scorer.score_text(decoder_try)
@@ -78,15 +78,10 @@ def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.S
             highscore = score
             best_pos = pos
 
-    decoder_enigma.set_rotor_positions(best_pos)
-    decoded_msg = decoder_enigma.encode_message(encrypted_message)
-    if debug_msg:
-        print('After rotor selection: ', decoded_msg)
-
     # decode the plugboard
     # we have 10 plugs to distribute
     available_plug_positions = list(range(n_chars))
-    for i in tqdm.tqdm(range(n_plugs)):
+    for i in tqdm.tqdm(range(n_plugs), disable=disable_tqdm):
         highscore = -np.inf
         best_swap = (0, 1)
         # go through all positions for the plug and get their score
@@ -112,8 +107,5 @@ def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.S
 
     decoder_enigma.set_rotor_positions(best_pos)
     decoded_msg = decoder_enigma.encode_message(encrypted_message)
-
-    if debug_msg:
-        print('After plugboard selection :', decoded_msg)
 
     return decoded_msg, best_pos, decoder_plugboard
