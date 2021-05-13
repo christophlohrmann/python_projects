@@ -1,10 +1,36 @@
 import collections
+import baseconvert
 import string
 import numpy as np
 import copy
 import tqdm
 
 import enigma
+
+
+class MultiindexIiterator:
+    def __init__(self, n_dims, n_val_per_dim):
+        self.n_dims = n_dims
+        self.n_val_per_dim = n_val_per_dim
+        self.lin_idx = 0
+
+        self.len = self.n_val_per_dim ** self.n_dims
+
+    def __len__(self):
+        return self.len
+
+    def __iter__(self):
+        self.lin_idx = 1
+        return self
+
+    def __next__(self):
+        if self.lin_idx < self.len:
+            baseconverted = list(baseconvert.base(self.lin_idx, 10, self.n_val_per_dim))
+            n_pad_zeros = self.n_dims - len(baseconverted)
+            self.lin_idx += 1
+            return n_pad_zeros * [0] + baseconverted
+        else:
+            raise StopIteration
 
 
 class TextScorerBase:
@@ -27,8 +53,8 @@ class PairLikelihoodScorer(TextScorerBase):
         return score
 
 
-def decode_message(encrypted_message, rotors: list,n_plugs, reflector:enigma.Swapper, scorer:TextScorerBase, charset = string.ascii_lowercase, debug_msg = False):
-
+def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper, scorer: TextScorerBase,
+                   charset=string.ascii_lowercase, debug_msg=False):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars, n_swaps=0)
@@ -42,18 +68,15 @@ def decode_message(encrypted_message, rotors: list,n_plugs, reflector:enigma.Swa
     highscore = -np.inf
     best_pos = 3 * [0]
 
-    # TODO loop over grid-multiindex. Parallel?
-
-    for i in tqdm.tqdm(range(n_chars)):
-        for j in range(n_chars):
-            for k in range(n_chars):
-                pos = [i, j, k]
-                decoder_enigma.set_rotor_positions(pos)
-                decoder_try = decoder_enigma.encode_message(encrypted_message)
-                score = scorer.score_text(decoder_try)
-                if score > highscore:
-                    highscore = score
-                    best_pos = pos
+    # Parallel?
+    positions = iter(MultiindexIiterator(len(rotors), n_chars))
+    for pos in tqdm.tqdm(positions):
+        decoder_enigma.set_rotor_positions(pos)
+        decoder_try = decoder_enigma.encode_message(encrypted_message)
+        score = scorer.score_text(decoder_try)
+        if score > highscore:
+            highscore = score
+            best_pos = pos
 
     decoder_enigma.set_rotor_positions(best_pos)
     decoded_msg = decoder_enigma.encode_message(encrypted_message)
