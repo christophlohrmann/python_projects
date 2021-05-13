@@ -12,12 +12,12 @@ class CrackEnigmaTest(ut.TestCase):
         self.n_chars = len(self.charset)
 
         self.plugboard = enigma.Swapper(n_positions=self.n_chars, n_swaps=n_plugs, seed=41)
-        rotor_seeds = [21, 32, 34]
+        rotor_seeds = [21, 32]
         self.rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
         self.reflector = enigma.Swapper(n_positions=self.n_chars, n_swaps=self.n_chars // 2, seed=3)
 
         encoder = enigma.Enigma(self.rotors, self.plugboard, self.reflector, charset=self.charset)
-        self.rotor_positions = [3, 4, 7]
+        self.rotor_positions = [3, 4]
         encoder.set_rotor_positions(self.rotor_positions)
 
         message = "The Enigma machine is a cipher device developed and used in the early- to mid-20th century to protect commercial, diplomatic, and military communication. It was employed extensively by Nazi Germany during World War II, in all branches of the German military. The Germans believed, erroneously, that use of the Enigma machine enabled them to communicate securely and thus enjoy a huge advantage in World War II. The Enigma machine was considered to be so secure that even the most top-secret messages were enciphered on its electrical circuits. Enigma has an electromechanical rotor mechanism that scrambles the 26 letters of the alphabet. In typical use, one person enters text on the Enigma's keyboard and another person writes down which of 26 lights above the keyboard lights up at each key press. If plain text is entered, the lit-up letters are the encoded ciphertext. Entering ciphertext transforms it back into readable plaintext. The rotor mechanism changes the electrical connections between the keys and the lights with each keypress. The security of the system depends on a set of machine settings that were generally changed daily during the war, based on secret key lists distributed in advance, and on other settings that were changed for each message. The receiving station has to know and use the exact settings employed by the transmitting station to successfully decrypt a message."
