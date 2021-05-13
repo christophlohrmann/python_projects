@@ -28,7 +28,7 @@ def gen_swap_dict(elements: list, n_swaps: int, seed):
     for el in seconds:
         elements.remove(el)
 
-    # and the ports that are not conected
+    # and the ports that are not connected
     leftover = elements
 
     swap_dict = dict()
@@ -80,8 +80,16 @@ class Swapper:
         self.n_positions = n_positions
         self.n_swaps = n_swaps
         self.seed = seed
-
+        # TODO implement manual setting of the swaps. random configurations should be an auxiliary
         self.swap_dict = gen_swap_dict(list(range(n_positions)), self.n_swaps, self.seed)
+
+    def set_element_swap(self, e1: int, e2: int):
+        self.swap_dict[e1] = e2
+        self.swap_dict[e2] = e1
+
+    def unset_element_swap(self, e1: int, e2: int):
+        self.swap_dict[e1] = e1
+        self.swap_dict[e2] = e2
 
     def get_output(self, input_: int) -> int:
         return self.swap_dict[input_]
