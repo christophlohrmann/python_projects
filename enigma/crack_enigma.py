@@ -120,13 +120,46 @@ def decode_message_successive_best(encrypted_message, rotors: list, n_plugs, ref
     return decoded_msg, best_pos, decoder_plugboard
 
 
-def decode_message_MC(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper,
+def _propose_rot_move(current_rotor_poss: list, max_rotor_pos: int, rng: np.random.default_rng):
+    prop_rotor_pos = current_rotor_poss.copy()
+    # pick random rotor
+    rot_idx = rng.integers(low=0, high=len(current_rotor_poss))
+    # randomly rotate in one direction
+    prop_rotor_pos[rot_idx] = (prop_rotor_pos[rot_idx] + rng.choice([-1, 1])) % max_rotor_pos
+    return prop_rotor_pos
+
+
+def _propose_plug_move(plugboard: enigma.Swapper, rng: np.random.default_rng):
+    plug_ends = list(plugboard.get_swapped_positions())
+    free_positions = list(plugboard.get_free_positions())
+    # choose random plug end to connect to a random free location
+    return rng.choice(plug_ends), rng.choice(free_positions)
+
+
+def _assess_move(decoder_enigma: enigma.Enigma, encrypted_message: str, scorer: TextScorerBase, old_score: float,
+                 score_scale: float,
+                 rng: np.random.default_rng):
+    # get the new score
+    rotor_pos = decoder_enigma.get_rotor_positions()
+    decoder_try = decoder_enigma.encode_message(encrypted_message)
+    decoder_enigma.set_rotor_positions(rotor_pos)
+    new_score = scorer.score_text(decoder_try)
+
+    # mc decision making
+    if new_score > old_score:
+        return True, new_score
+    else:
+        thresh = math.exp((new_score - old_score) / score_scale)
+        return rng.random() < thresh, new_score
+
+
+def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: enigma.Swapper,
                       scorer: TextScorerBase, score_scale: float = 1,
                       charset=string.ascii_lowercase):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars)
-    decoder_plugboard.assign_random_swaps(len(charset), n_plugs)
+    decoder_plugboard.assign_random_swaps(n_swaps=n_plugs)
     decoder_enigma = enigma.Enigma(copy.deepcopy(rotors),
                                    decoder_plugboard,
                                    copy.deepcopy(reflector),
@@ -138,55 +171,48 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs, reflector: enigm
 
     rng = np.random.default_rng(42)
 
-    def _propose_rot_move(current_rotor_poss: list, rng: np.random.default_rng):
-        prop_rotor_pos = current_rotor_poss.copy()
-        # pick random rotor
-        rot_idx = rng.integers(low=0, high=len(current_rotor_poss), size=1)
-        # randomly rotate in one direction
-        prop_rotor_pos[rot_idx] += int(round(rng.random() - 0.5))
-        return prop_rotor_pos
+    n_attempts_per_block = 1000
+    max_n_blocks = 100
+    last_block_avg_score = -np.inf
 
-    def _propose_plug_move(plugboard: enigma.Swapper, rng: np.random.default_rng):
-        plug_ends = plugboard.get_swapped_positions()
-        free_positions = plugboard.get_free_positions()
-        # choose random plug end to connect to a random free location
-        return rng.choice(plug_ends), rng.choice(free_positions)
+    for i in range(max_n_blocks):
+        block_scores = list()
+        block_accepted_rot = 0
+        block_accepted_plug = 0
+        for _ in range(n_attempts_per_block):
 
-    def _assess_move(decoder_enigma: enigma.Enigma, scorer:TextScorerBase, old_score:float, score_scale:float, rng:np.random.default_rng):
-        # get the new score
-        rotor_pos = decoder_enigma.get_rotor_positions()
-        decoder_try = decoder_enigma.encode_message(encrypted_message)
-        decoder_enigma.set_rotor_positions(rotor_pos)
-        new_score = scorer.score_text(decoder_try)
+            # rotor move
+            prop_rot_pos = _propose_rot_move(last_rotor_positions, n_chars, rng)
+            decoder_enigma.set_rotor_positions(prop_rot_pos)
+            accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale, rng)
+            if accept:
+                block_accepted_rot += 1
+                last_score = new_score
+                last_rotor_positions = prop_rot_pos
 
-        # mc decision making
-        r = rng.random()
-        return r < math.exp((new_score-old_score) / score_scale), new_score
+            if n_plugs > 0:
+                # plugboard move
+                prop_plug_move = _propose_plug_move(decoder_plugboard, rng)
+                decoder_plugboard.move_one_swap_side(prop_plug_move[0], prop_plug_move[1])
+                accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale, rng)
+                if accept:
+                    last_score = new_score
+                    block_accepted_plug += 1
+                else:
+                    # undo the move
+                    decoder_plugboard.move_one_swap_side(prop_plug_move[1], prop_plug_move[0])
 
-    for _ in range(10000):
-        # rotor move
-        prop_rot_pos = _propose_rot_move(last_rotor_positions, rng)
-        decoder_enigma.set_rotor_positions(prop_rot_pos)
-        accept, new_score = _assess_move(decoder_enigma, scorer, last_score, score_scale, rng)
-        if accept:
-            last_score = new_score
-            last_rotor_positions = prop_rot_pos
+            block_scores.append(last_score)
 
-        # plugboard move
-        prop_plug_move = _propose_plug_move(decoder_plugboard, rng)
-        decoder_plugboard.move_one_swap_side(prop_plug_move[0], prop_plug_move[1])
-        accept, new_score = _assess_move(decoder_enigma, scorer, last_score, score_scale, rng)
-        if accept:
-            last_score = new_score
-        else:
-            # undo the move
-            decoder_plugboard.move_one_swap_side(prop_plug_move[1], prop_plug_move[0])
+        block_avg_score = np.mean(block_scores)
+        if abs((block_avg_score - last_block_avg_score) / last_block_avg_score) < 0.0001:
+            break
+        last_block_avg_score = block_avg_score
+        print(f'avg score {last_block_avg_score}')
+        print(f'acceptance rate rot {block_accepted_rot / n_attempts_per_block}')
+        print(f'acceptance rate plug {block_accepted_plug / n_attempts_per_block}')
 
     # use the final settings to return
     decoded_msg = decoder_enigma.encode_message(encrypted_message)
 
     return decoded_msg, last_rotor_positions, decoder_plugboard
-
-
-
-

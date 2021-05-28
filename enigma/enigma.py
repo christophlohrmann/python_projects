@@ -61,6 +61,9 @@ class Rotor:
     def set_position(self, pos: int):
         self.position = pos % self.n_positions
 
+    def get_position(self) -> int:
+        return self.position
+
     def get_permuted_output_forward(self, input_: int) -> int:
         add_idx = (input_ + self.position) % self.n_positions
         return int((input_ + self.forward_adds[add_idx]) % self.n_positions)

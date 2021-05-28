@@ -1,5 +1,3 @@
-import collections
-
 import dill
 import string
 
@@ -10,7 +8,7 @@ import crack_enigma
 
 
 class SwapperTest(ut.TestCase):
-    def test_plugboard(self):
+    def test_plugboard_random_swaps(self):
         plugboard = enigma.Swapper(n_positions=10)
         in_1 = 5
         out_1 = plugboard.get_output(in_1)
@@ -21,6 +19,34 @@ class SwapperTest(ut.TestCase):
         out_0 = plugboard.get_output(in_0)
         self.assertNotEqual(in_0, out_0)
         self.assertEqual(in_0, plugboard.get_output(out_0))
+
+    def test_swap_methods(self):
+        plugboard = enigma.Swapper(n_positions=10)
+
+        # element swap
+        plugboard.set_element_swap(3, 7)
+        self.assertEqual(plugboard.get_output(3), 7)
+        self.assertEqual(plugboard.get_output(7), 3)
+        self.assertEqual(plugboard.get_output(2), 2)
+
+        # swap move
+        plugboard.move_one_swap_side(7, 8)
+        self.assertEqual(plugboard.get_output(3), 8)
+        self.assertEqual(plugboard.get_output(8), 3)
+        self.assertEqual(plugboard.get_output(7), 7)
+        self.assertEqual(plugboard.get_output(2), 2)
+
+        with self.assertRaises(ValueError):
+            plugboard.move_one_swap_side(2, 3)
+
+        plugboard.set_element_swap(2, 1)
+        with self.assertRaises(ValueError):
+            plugboard.move_one_swap_side(8, 2)
+
+        # swap remove
+        plugboard.unset_element_swap(3, 8)
+        self.assertEqual(plugboard.get_output(7), 7)
+        self.assertEqual(plugboard.get_output(8), 8)
 
 
 class RotorTest(ut.TestCase):
@@ -67,21 +93,20 @@ class EnigmaTest(ut.TestCase):
         self.assertEqual(decoded_message, self.test_message)
 
 
-class CrackEnigmaTest(ut.TestCase):
-    def setup_enigma_and_msg(self, len_msg, n_plugs):
+class CrackEnigmaCommon:
+    def setup_enigma_and_msg(self, len_msg, n_rotors, n_plugs):
         self.charset = string.ascii_lowercase
         self.n_chars = len(self.charset)
 
-        self.plugboard = enigma.Swapper(n_positions=self.n_chars)
-        self.plugboard.assign_random_swaps(n_swaps=n_plugs, seed=41)
-        rotor_seeds = [21, 32]
-        self.rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
         self.reflector = enigma.Swapper(n_positions=self.n_chars)
         self.reflector.assign_random_swaps(n_swaps=self.n_chars // 2, seed=3)
 
-        encoder = enigma.Enigma(self.rotors, self.plugboard, self.reflector, charset=self.charset)
-        self.rotor_positions = [3, 4]
-        encoder.set_rotor_positions(self.rotor_positions)
+        rotor_seeds = list(range(n_rotors))
+        self.rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
+        self.rotor_positions = n_rotors * [15]
+
+        self.plugboard = enigma.Swapper(n_positions=self.n_chars)
+        self.plugboard.assign_random_swaps(n_swaps=n_plugs, seed=41)
 
         message = "The Enigma machine is a cipher device developed and used in the early- to mid-20th century to protect" \
                   " commercial, diplomatic, and military communication. It was employed extensively by Nazi Germany during " \
@@ -98,10 +123,18 @@ class CrackEnigmaTest(ut.TestCase):
                   "each message. The receiving station has to know and use the exact settings employed by the transmitting " \
                   "station to successfully decrypt a message."
         message = message.lower()
-        message = ''.join(c for c in message if c.islower())
-        self.message = message[:len_msg]
+        self.message_full = ''.join(c for c in message if c.islower())
 
+        encoder = enigma.Enigma(self.rotors, self.plugboard, self.reflector, charset=self.charset)
+        encoder.set_rotor_positions(self.rotor_positions)
+        self.message = self.message_full[:len_msg]
         self.encrypted_message = encoder.encode_message(self.message)
+
+        # reset all rotors so MC does not start with a good value
+        encoder.set_rotor_positions(n_rotors*[0])
+
+
+class CrackEnigmaSuccessiveBestTest(ut.TestCase, CrackEnigmaCommon):
 
     def test_diad_cracking(self):
         self.check_crack_with_grouplikelihood('diads')
@@ -114,24 +147,46 @@ class CrackEnigmaTest(ut.TestCase):
 
     def check_crack_with_grouplikelihood(self, groupname: str):
         n_plugs = 2
-        self.setup_enigma_and_msg(100, n_plugs)
+        n_rotors = 2
+        self.setup_enigma_and_msg(100, n_rotors, n_plugs)
 
         with open('./language_stats.dill', 'rb') as read_file:
             group_likelihood = dill.load(read_file)[groupname]
         scorer = crack_enigma.GroupLikelihoodScorer(group_likelihood)
 
-        decrypted_msg, decoded_pos, decoder_plugboard = crack_enigma.decode_message(self.encrypted_message,
-                                                                                    self.rotors,
-                                                                                    n_plugs,
-                                                                                    self.reflector,
-                                                                                    scorer,
-                                                                                    charset=self.charset,
-                                                                                    disable_tqdm=True)
+        decrypted_msg, decoded_pos, decoder_plugboard = \
+            crack_enigma.decode_message_successive_best(self.encrypted_message,
+                                                        self.rotors,
+                                                        n_plugs,
+                                                        self.reflector,
+                                                        scorer,
+                                                        charset=self.charset,
+                                                        disable_tqdm=True)
 
         self.assertListEqual(self.rotor_positions, decoded_pos)
         self.assertDictEqual(self.plugboard.swap_dict, decoder_plugboard.swap_dict)
 
         self.assertEqual(self.message, decrypted_msg)
+
+
+class CrackEnigmaMCTest(ut.TestCase, CrackEnigmaCommon):
+    def test_triad_cracking(self):
+        n_plugs = 0
+        n_rotors = 1
+        self.setup_enigma_and_msg(200, n_rotors, n_plugs)
+
+        with open('./language_stats.dill', 'rb') as read_file:
+            group_likelihood = dill.load(read_file)['triads']
+        scorer = crack_enigma.GroupLikelihoodScorer(group_likelihood)
+
+        decrypted_msg, decoded_pos, decoder_plugboard = \
+            crack_enigma.decode_message_MC(self.encrypted_message,
+                                           self.rotors,
+                                           n_plugs,
+                                           self.reflector, scorer,
+                                           charset=self.charset,
+                                           score_scale=0.2)
+        print(decrypted_msg)
 
 
 if __name__ == '__main__':
