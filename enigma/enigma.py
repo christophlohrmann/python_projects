@@ -28,15 +28,11 @@ def gen_swap_dict(elements: list, n_swaps: int, seed):
     for el in seconds:
         elements.remove(el)
 
-    # and the ports that are not connected
-    leftover = elements
-
     swap_dict = dict()
     for first, second in zip(firsts, seconds):
         swap_dict[first] = second
         swap_dict[second] = first
-    for el in leftover:
-        swap_dict[el] = el
+
     return swap_dict
 
 
@@ -77,22 +73,44 @@ class Rotor:
 class Swapper:
     def __init__(self, n_positions: int = 26):
         self.n_positions = n_positions
-        self.swap_dict = gen_swap_dict(list(range(self.n_positions)), 0, 0)
+        self.swap_dict = dict()
+
+    def assign_random_swaps(self, n_swaps: int = 10, seed: int = 42):
+        assert n_swaps <= self.n_positions // 2
+        self.swap_dict = gen_swap_dict(list(range(self.n_positions)), n_swaps, seed)
 
     def set_element_swap(self, e1: int, e2: int):
+        # todo sanity check
         self.swap_dict[e1] = e2
         self.swap_dict[e2] = e1
 
     def unset_element_swap(self, e1: int, e2: int):
-        self.swap_dict[e1] = e1
-        self.swap_dict[e2] = e2
+        self.swap_dict.pop(e1)
+        self.swap_dict.pop(e2)
+
+    def move_one_swap_side(self, move_from: int, move_to: int, sanity_checks=True):
+        if sanity_checks:
+            if move_from not in self.swap_dict.keys():
+                raise ValueError('move_from was not part of a swap before moving')
+            if move_to in self.swap_dict.keys():
+                raise ValueError('move_to is already taken')
+
+        # set the new connection
+        self.set_element_swap(self.swap_dict[move_from], move_to)
+        # remove the old connection
+        self.swap_dict.pop(move_from)
 
     def get_output(self, input_: int) -> int:
-        return self.swap_dict[input_]
+        # if swapped, return the swap value, else return the input
+        return self.swap_dict.get(input_, input_)
 
-    def assign_random_swaps(self, n_swaps: int, seed: int):
-        assert n_swaps <= self.n_positions // 2
-        self.swap_dict = gen_swap_dict(list(range(self.n_positions)), n_swaps, seed)
+    def get_free_positions(self) -> set:
+        all_pos = set(range(self.n_positions))
+        taken_pos = set(self.swap_dict.keys())
+        return all_pos - taken_pos
+
+    def get_swapped_positions(self) -> set:
+        return set(self.swap_dict.keys())
 
 
 class Enigma:
