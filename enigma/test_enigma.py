@@ -103,14 +103,22 @@ class CrackEnigmaTest(ut.TestCase):
 
         self.encrypted_message = encoder.encode_message(self.message)
 
-    def test_crack_with_pairlikelihood(self):
+    def test_diad_cracking(self):
+        self.check_crack_with_grouplikelihood('diads')
+
+    def test_triad_cracking(self):
+        self.check_crack_with_grouplikelihood('triads')
+
+    def testquad_cracking(self):
+        self.check_crack_with_grouplikelihood('quads')
+
+    def check_crack_with_grouplikelihood(self, groupname: str):
         n_plugs = 2
         self.setup_enigma_and_msg(100, n_plugs)
 
         with open('./language_stats.dill', 'rb') as read_file:
-            pair_likelihood = dill.load(read_file)['diads']
-        pair_likelihood = collections.defaultdict(lambda: -10, pair_likelihood)
-        scorer = crack_enigma.GroupLikelihoodScorer(pair_likelihood)
+            group_likelihood = dill.load(read_file)[groupname]
+        scorer = crack_enigma.GroupLikelihoodScorer(group_likelihood)
 
         decrypted_msg, decoded_pos, decoder_plugboard = crack_enigma.decode_message(self.encrypted_message,
                                                                                     self.rotors,
