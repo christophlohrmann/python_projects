@@ -1,4 +1,6 @@
 import collections
+import math
+
 import baseconvert
 import string
 import numpy as np
@@ -60,8 +62,9 @@ class GroupLikelihoodScorer(TextScorerBase):
         return score
 
 
-def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper, scorer: TextScorerBase,
-                   charset=string.ascii_lowercase, disable_tqdm=False):
+def decode_message_successive_best(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper,
+                                   scorer: TextScorerBase,
+                                   charset=string.ascii_lowercase, disable_tqdm=False):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars)
@@ -115,3 +118,75 @@ def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.S
     decoded_msg = decoder_enigma.encode_message(encrypted_message)
 
     return decoded_msg, best_pos, decoder_plugboard
+
+
+def decode_message_MC(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper,
+                      scorer: TextScorerBase, score_scale: float = 1,
+                      charset=string.ascii_lowercase):
+    n_chars = rotors[0].n_positions
+    # test encoder knows the machine
+    decoder_plugboard = enigma.Swapper(n_positions=n_chars)
+    decoder_plugboard.assign_random_swaps(len(charset), n_plugs)
+    decoder_enigma = enigma.Enigma(copy.deepcopy(rotors),
+                                   decoder_plugboard,
+                                   copy.deepcopy(reflector),
+                                   charset=charset)
+
+    last_rotor_positions = decoder_enigma.get_rotor_positions()
+    last_dec_msg = decoder_enigma.encode_message(encrypted_message)
+    last_score = scorer.score_text(last_dec_msg)
+
+    rng = np.random.default_rng(42)
+
+    def _propose_rot_move(current_rotor_poss: list, rng: np.random.default_rng):
+        prop_rotor_pos = current_rotor_poss.copy()
+        # pick random rotor
+        rot_idx = rng.integers(low=0, high=len(current_rotor_poss), size=1)
+        # randomly rotate in one direction
+        prop_rotor_pos[rot_idx] += int(round(rng.random() - 0.5))
+        return prop_rotor_pos
+
+    def _propose_plug_move(plugboard: enigma.Swapper, rng: np.random.default_rng):
+        plug_ends = plugboard.get_swapped_positions()
+        free_positions = plugboard.get_free_positions()
+        # choose random plug end to connect to a random free location
+        return rng.choice(plug_ends), rng.choice(free_positions)
+
+    def _assess_move(decoder_enigma: enigma.Enigma, scorer:TextScorerBase, old_score:float, score_scale:float, rng:np.random.default_rng):
+        # get the new score
+        rotor_pos = decoder_enigma.get_rotor_positions()
+        decoder_try = decoder_enigma.encode_message(encrypted_message)
+        decoder_enigma.set_rotor_positions(rotor_pos)
+        new_score = scorer.score_text(decoder_try)
+
+        # mc decision making
+        r = rng.random()
+        return r < math.exp((new_score-old_score) / score_scale), new_score
+
+    for _ in range(10000):
+        # rotor move
+        prop_rot_pos = _propose_rot_move(last_rotor_positions, rng)
+        decoder_enigma.set_rotor_positions(prop_rot_pos)
+        accept, new_score = _assess_move(decoder_enigma, scorer, last_score, score_scale, rng)
+        if accept:
+            last_score = new_score
+            last_rotor_positions = prop_rot_pos
+
+        # plugboard move
+        prop_plug_move = _propose_plug_move(decoder_plugboard, rng)
+        decoder_plugboard.move_one_swap_side(prop_plug_move[0], prop_plug_move[1])
+        accept, new_score = _assess_move(decoder_enigma, scorer, last_score, score_scale, rng)
+        if accept:
+            last_score = new_score
+        else:
+            # undo the move
+            decoder_plugboard.move_one_swap_side(prop_plug_move[1], prop_plug_move[0])
+
+    # use the final settings to return
+    decoded_msg = decoder_enigma.encode_message(encrypted_message)
+
+    return decoded_msg, last_rotor_positions, decoder_plugboard
+
+
+
+
