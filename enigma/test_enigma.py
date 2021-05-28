@@ -1,3 +1,5 @@
+import collections
+
 import dill
 import string
 
@@ -105,9 +107,10 @@ class CrackEnigmaTest(ut.TestCase):
         n_plugs = 2
         self.setup_enigma_and_msg(100, n_plugs)
 
-        with open('./log_likelihoods.dill', 'rb') as read_file:
-            lld = dill.load(read_file)
-        scorer = crack_enigma.PairLikelihoodScorer(lld)
+        with open('./language_stats.dill', 'rb') as read_file:
+            pair_likelihood = dill.load(read_file)['diads']
+        pair_likelihood = collections.defaultdict(lambda: -10, pair_likelihood)
+        scorer = crack_enigma.GroupLikelihoodScorer(pair_likelihood)
 
         decrypted_msg, decoded_pos, decoder_plugboard = crack_enigma.decode_message(self.encrypted_message,
                                                                                     self.rotors,

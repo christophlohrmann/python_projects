@@ -38,23 +38,30 @@ class TextScorerBase:
         raise NotImplementedError
 
 
-class PairLikelihoodScorer(TextScorerBase):
-    def __init__(self, loglikelihooddict: collections.defaultdict):
-        self.lld = loglikelihooddict
+class GroupLikelihoodScorer(TextScorerBase):
+    def __init__(self, loglikelihooddict: dict, not_known_penalty_factor=2):
+        """
+        :param loglikelihooddict:
+        :param not_known_penalty_factor: If a group is encountered that is not in the loglikelihooddict,
+        choose a penalty based on the least liely group and the additional penalty factor
+        """
+        least_likely = min(loglikelihooddict, key=lambda k: loglikelihooddict[k])
+        self.lld = collections.defaultdict(lambda: loglikelihooddict[least_likely] * not_known_penalty_factor,
+                                           loglikelihooddict)
+        self.n_chars_group = len(least_likely)
 
     def score_text(self, text: str) -> float:
         score = 0.
-        current_char = text[0]
-        for i in range(len(text) - 1):
-            next_char = text[i + 1]
-            score += self.lld[current_char][next_char]
-            current_char = next_char
-        score /= (len(text) - 1)
+        n_groups = len(text) - self.n_chars_group + 1
+        for i in range(n_groups):
+            group = text[i:i + self.n_chars_group]
+            score += self.lld[group]
+        score /= n_groups
         return score
 
 
 def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper, scorer: TextScorerBase,
-                   charset=string.ascii_lowercase, disable_tqdm = False):
+                   charset=string.ascii_lowercase, disable_tqdm=False):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars)
@@ -62,11 +69,10 @@ def decode_message(encrypted_message, rotors: list, n_plugs, reflector: enigma.S
                                    decoder_plugboard,
                                    copy.deepcopy(reflector),
                                    charset=charset)
-    decoder_enigma.set_rotor_positions([0, 0, 0])
 
     # go through all positions and get the score of the output text
     highscore = -np.inf
-    best_pos = 3 * [0]
+    best_pos = decoder_enigma.get_rotor_positions()
 
     # TODO Parallel?
     positions = iter(MultiindexIiterator(len(rotors), n_chars))

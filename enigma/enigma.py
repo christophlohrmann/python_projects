@@ -122,6 +122,9 @@ class Enigma:
             assert pos < rot.n_positions
             rot.position = pos
 
+    def get_rotor_positions(self):
+        return [rot.position for rot in self.rotors]
+
     def encode_message(self, input_: str) -> str:
         input_ints = [self.char_to_number_map[char] for char in input_]
 
