@@ -8,14 +8,14 @@ import tqdm
 import enigma
 
 
-def conv_number_to_base_base(n: int, b: int) -> list:
+def conv_number_to_base(n: int, b: int) -> list:
     if n == 0:
         return [0]
-    digits = []
+    digits = list()
     while n:
         digits.append(int(n % b))
         n //= b
-    return digits.reverse()
+    return digits[::-1]
 
 
 class MultiindexIiterator:
@@ -47,7 +47,7 @@ class MultiindexIiterator:
 
     def __next__(self):
         if self.lin_idx < self.len:
-            baseconverted = list(baseconvert.base(self.lin_idx, 10, self.n_val_per_dim))
+            baseconverted = conv_number_to_base(self.lin_idx, self.n_val_per_dim)
             n_pad_zeros = self.n_dims - len(baseconverted)
             self.lin_idx += 1
             return n_pad_zeros * [0] + baseconverted
@@ -227,9 +227,9 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: 
         if abs((block_avg_score - last_block_avg_score) / last_block_avg_score) < 0.0001:
             break
         last_block_avg_score = block_avg_score
-        print(f'avg score {last_block_avg_score}')
-        print(f'acceptance rate rot {block_accepted_rot / n_attempts_per_block}')
-        print(f'acceptance rate plug {block_accepted_plug / n_attempts_per_block}')
+        # print(f'avg score {last_block_avg_score}')
+        # print(f'acceptance rate rot {block_accepted_rot / n_attempts_per_block}')
+        # print(f'acceptance rate plug {block_accepted_plug / n_attempts_per_block}')
 
     # use the final settings to return
     decoded_msg = decoder_enigma.encode_message(encrypted_message)
