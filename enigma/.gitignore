@@ -1,4 +1,4 @@
-*.dill
+#*.dill
 *.pick
 *.gz
 *.tgz
