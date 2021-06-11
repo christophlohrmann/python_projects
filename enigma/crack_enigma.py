@@ -10,7 +10,29 @@ import tqdm
 import enigma
 
 
+def conv_number_to_base_base(n: int, b: int) -> list:
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(int(n % b))
+        n //= b
+    return digits.reverse()
+
+
 class MultiindexIiterator:
+    """
+    iterate over a grid of points in a linear way.
+    e.g. for n_dims == 2 and n_val_per_dim = 3 is is
+    [0,0]
+    [0,1]
+    [0,2]
+    [1,0]
+    [1,1]
+    [1,2]
+    ....
+    [2,2]
+    """
     def __init__(self, n_dims, n_val_per_dim):
         self.n_dims = n_dims
         self.n_val_per_dim = n_val_per_dim
@@ -22,7 +44,7 @@ class MultiindexIiterator:
         return self.len
 
     def __iter__(self):
-        self.lin_idx = 1
+        self.lin_idx = 0
         return self
 
     def __next__(self):
@@ -154,7 +176,7 @@ def _assess_move(decoder_enigma: enigma.Enigma, encrypted_message: str, scorer: 
 
 
 def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: enigma.Swapper,
-                      scorer: TextScorerBase, score_scale: float = 1, n_attempts_per_block = 1000, max_n_blocks = 100,
+                      scorer: TextScorerBase, score_scale: float = 1, n_attempts_per_block=1000, max_n_blocks=100,
                       charset=string.ascii_lowercase):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
@@ -192,7 +214,8 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: 
                 # plugboard move
                 prop_plug_move = _propose_plug_move(decoder_plugboard, rng)
                 decoder_plugboard.move_one_swap_side(prop_plug_move[0], prop_plug_move[1])
-                accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale, rng)
+                accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale,
+                                                 rng)
                 if accept:
                     last_score = new_score
                     block_accepted_plug += 1

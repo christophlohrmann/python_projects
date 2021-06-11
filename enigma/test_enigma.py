@@ -7,12 +7,28 @@ import enigma
 import crack_enigma
 
 
-def string_compare(s1:string, s2:string) -> float:
+def string_compare(s1: string, s2: string) -> float:
     n_same = 0
-    for c1, c2 in zip(s1,s2):
+    for c1, c2 in zip(s1, s2):
         if c1 == c2:
             n_same += 1
-    return n_same/len(s1)
+    return n_same / len(s1)
+
+
+class UtilsTest(ut.TestCase):
+    def test_multiindexiterator(self):
+        it = iter(crack_enigma.MultiindexIiterator(2, 3))
+        shouldbe = [[0, 0], [0, 1], [0, 2],
+                    [1, 0], [1, 1], [1, 2],
+                    [2, 0], [2, 1], [2, 2]]
+        for i, s in zip(it, shouldbe):
+            self.assertListEqual(i, s)
+
+    def test_string_compare(self):
+        a = 'abcdff'
+        b = 'abefff'
+        self.assertAlmostEqual(string_compare(a,b),2./3.)
+
 
 class SwapperTest(ut.TestCase):
     def test_plugboard_random_swaps(self):
@@ -138,7 +154,7 @@ class CrackEnigmaCommon:
         self.encrypted_message = encoder.encode_message(self.message)
 
         # reset all rotors so MC does not start with a good value
-        encoder.set_rotor_positions(n_rotors*[0])
+        encoder.set_rotor_positions(n_rotors * [0])
 
 
 class CrackEnigmaSuccessiveBestTest(ut.TestCase, CrackEnigmaCommon):
@@ -193,8 +209,8 @@ class CrackEnigmaMCTest(ut.TestCase, CrackEnigmaCommon):
                                            self.reflector, scorer,
                                            charset=self.charset,
                                            score_scale=0.2,
-                                           n_attempts_per_block = 100,
-                                           max_n_blocks = 100)
+                                           n_attempts_per_block=100,
+                                           max_n_blocks=100)
         self.assertGreater(string_compare(decrypted_msg, self.message), 0.85)
 
 
