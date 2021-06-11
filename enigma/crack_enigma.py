@@ -154,7 +154,7 @@ def _assess_move(decoder_enigma: enigma.Enigma, encrypted_message: str, scorer: 
 
 
 def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: enigma.Swapper,
-                      scorer: TextScorerBase, score_scale: float = 1,
+                      scorer: TextScorerBase, score_scale: float = 1, n_attempts_per_block = 1000, max_n_blocks = 100,
                       charset=string.ascii_lowercase):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
@@ -171,8 +171,6 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: 
 
     rng = np.random.default_rng(42)
 
-    n_attempts_per_block = 1000
-    max_n_blocks = 100
     last_block_avg_score = -np.inf
 
     for i in range(max_n_blocks):

@@ -7,6 +7,13 @@ import enigma
 import crack_enigma
 
 
+def string_compare(s1:string, s2:string) -> float:
+    n_same = 0
+    for c1, c2 in zip(s1,s2):
+        if c1 == c2:
+            n_same += 1
+    return n_same/len(s1)
+
 class SwapperTest(ut.TestCase):
     def test_plugboard_random_swaps(self):
         plugboard = enigma.Swapper(n_positions=10)
@@ -185,8 +192,10 @@ class CrackEnigmaMCTest(ut.TestCase, CrackEnigmaCommon):
                                            n_plugs,
                                            self.reflector, scorer,
                                            charset=self.charset,
-                                           score_scale=0.2)
-        print(decrypted_msg)
+                                           score_scale=0.2,
+                                           n_attempts_per_block = 100,
+                                           max_n_blocks = 100)
+        self.assertGreater(string_compare(decrypted_msg, self.message), 0.85)
 
 
 if __name__ == '__main__':
