@@ -31,6 +31,7 @@ class MultiindexIiterator:
     ....
     [2,2]
     """
+
     def __init__(self, n_dims, n_val_per_dim):
         self.n_dims = n_dims
         self.n_val_per_dim = n_val_per_dim
@@ -68,30 +69,40 @@ class GroupLikelihoodScorer(TextScorerBase):
         choose a penalty based on the least liely group and the additional penalty factor
         """
         least_likely = min(loglikelihooddict, key=lambda k: loglikelihooddict[k])
-        self.lld = collections.defaultdict(lambda: loglikelihooddict[least_likely] * not_known_penalty_factor,
-                                           loglikelihooddict)
+        self.lld = collections.defaultdict(
+            lambda: loglikelihooddict[least_likely] * not_known_penalty_factor,
+            loglikelihooddict,
+        )
         self.n_chars_group = len(least_likely)
 
     def score_text(self, text: str) -> float:
-        score = 0.
+        score = 0.0
         n_groups = len(text) - self.n_chars_group + 1
         for i in range(n_groups):
-            group = text[i:i + self.n_chars_group]
+            group = text[i : i + self.n_chars_group]
             score += self.lld[group]
         score /= n_groups
         return score
 
 
-def decode_message_successive_best(encrypted_message, rotors: list, n_plugs, reflector: enigma.Swapper,
-                                   scorer: TextScorerBase,
-                                   charset=string.ascii_lowercase, disable_tqdm=False):
+def decode_message_successive_best(
+    encrypted_message,
+    rotors: list,
+    n_plugs,
+    reflector: enigma.Swapper,
+    scorer: TextScorerBase,
+    charset=string.ascii_lowercase,
+    disable_tqdm=False,
+):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars)
-    decoder_enigma = enigma.Enigma(copy.deepcopy(rotors),
-                                   decoder_plugboard,
-                                   copy.deepcopy(reflector),
-                                   charset=charset)
+    decoder_enigma = enigma.Enigma(
+        copy.deepcopy(rotors),
+        decoder_plugboard,
+        copy.deepcopy(reflector),
+        charset=charset,
+    )
 
     # go through all positions and get the score of the output text
     highscore = -np.inf
@@ -140,12 +151,16 @@ def decode_message_successive_best(encrypted_message, rotors: list, n_plugs, ref
     return decoded_msg, best_pos, decoder_plugboard
 
 
-def _propose_rot_move(current_rotor_poss: list, max_rotor_pos: int, rng: np.random.default_rng):
+def _propose_rot_move(
+    current_rotor_poss: list, max_rotor_pos: int, rng: np.random.default_rng
+):
     prop_rotor_pos = current_rotor_poss.copy()
     # pick random rotor
     rot_idx = rng.integers(low=0, high=len(current_rotor_poss))
     # randomly rotate in one direction
-    prop_rotor_pos[rot_idx] = (prop_rotor_pos[rot_idx] + rng.choice([-1, 1])) % max_rotor_pos
+    prop_rotor_pos[rot_idx] = (
+        prop_rotor_pos[rot_idx] + rng.choice([-1, 1])
+    ) % max_rotor_pos
     return prop_rotor_pos
 
 
@@ -156,9 +171,14 @@ def _propose_plug_move(plugboard: enigma.Swapper, rng: np.random.default_rng):
     return rng.choice(plug_ends), rng.choice(free_positions)
 
 
-def _assess_move(decoder_enigma: enigma.Enigma, encrypted_message: str, scorer: TextScorerBase, old_score: float,
-                 score_scale: float,
-                 rng: np.random.default_rng):
+def _assess_move(
+    decoder_enigma: enigma.Enigma,
+    encrypted_message: str,
+    scorer: TextScorerBase,
+    old_score: float,
+    score_scale: float,
+    rng: np.random.default_rng,
+):
     # get the new score
     rotor_pos = decoder_enigma.get_rotor_positions()
     decoder_try = decoder_enigma.encode_message(encrypted_message)
@@ -173,17 +193,27 @@ def _assess_move(decoder_enigma: enigma.Enigma, encrypted_message: str, scorer: 
         return rng.random() < thresh, new_score
 
 
-def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: enigma.Swapper,
-                      scorer: TextScorerBase, score_scale: float = 1, n_attempts_per_block=1000, max_n_blocks=100,
-                      charset=string.ascii_lowercase):
+def decode_message_MC(
+    encrypted_message,
+    rotors: list,
+    n_plugs: int,
+    reflector: enigma.Swapper,
+    scorer: TextScorerBase,
+    score_scale: float = 1,
+    n_attempts_per_block=1000,
+    max_n_blocks=100,
+    charset=string.ascii_lowercase,
+):
     n_chars = rotors[0].n_positions
     # test encoder knows the machine
     decoder_plugboard = enigma.Swapper(n_positions=n_chars)
     decoder_plugboard.assign_random_swaps(n_swaps=n_plugs)
-    decoder_enigma = enigma.Enigma(copy.deepcopy(rotors),
-                                   decoder_plugboard,
-                                   copy.deepcopy(reflector),
-                                   charset=charset)
+    decoder_enigma = enigma.Enigma(
+        copy.deepcopy(rotors),
+        decoder_plugboard,
+        copy.deepcopy(reflector),
+        charset=charset,
+    )
 
     last_rotor_positions = decoder_enigma.get_rotor_positions()
     last_dec_msg = decoder_enigma.encode_message(encrypted_message)
@@ -202,7 +232,9 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: 
             # rotor move
             prop_rot_pos = _propose_rot_move(last_rotor_positions, n_chars, rng)
             decoder_enigma.set_rotor_positions(prop_rot_pos)
-            accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale, rng)
+            accept, new_score = _assess_move(
+                decoder_enigma, encrypted_message, scorer, last_score, score_scale, rng
+            )
             if accept:
                 block_accepted_rot += 1
                 last_score = new_score
@@ -211,20 +243,33 @@ def decode_message_MC(encrypted_message, rotors: list, n_plugs: int, reflector: 
             if n_plugs > 0:
                 # plugboard move
                 prop_plug_move = _propose_plug_move(decoder_plugboard, rng)
-                decoder_plugboard.move_one_swap_side(prop_plug_move[0], prop_plug_move[1])
-                accept, new_score = _assess_move(decoder_enigma, encrypted_message, scorer, last_score, score_scale,
-                                                 rng)
+                decoder_plugboard.move_one_swap_side(
+                    prop_plug_move[0], prop_plug_move[1]
+                )
+                accept, new_score = _assess_move(
+                    decoder_enigma,
+                    encrypted_message,
+                    scorer,
+                    last_score,
+                    score_scale,
+                    rng,
+                )
                 if accept:
                     last_score = new_score
                     block_accepted_plug += 1
                 else:
                     # undo the move
-                    decoder_plugboard.move_one_swap_side(prop_plug_move[1], prop_plug_move[0])
+                    decoder_plugboard.move_one_swap_side(
+                        prop_plug_move[1], prop_plug_move[0]
+                    )
 
             block_scores.append(last_score)
 
         block_avg_score = np.mean(block_scores)
-        if abs((block_avg_score - last_block_avg_score) / last_block_avg_score) < 0.0001:
+        if (
+            abs((block_avg_score - last_block_avg_score) / last_block_avg_score)
+            < 0.0001
+        ):
             break
         last_block_avg_score = block_avg_score
         # print(f'avg score {last_block_avg_score}')

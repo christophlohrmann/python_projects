@@ -18,16 +18,24 @@ def string_compare(s1: string, s2: string) -> float:
 class UtilsTest(ut.TestCase):
     def test_multiindexiterator(self):
         it = iter(crack_enigma.MultiindexIiterator(2, 3))
-        shouldbe = [[0, 0], [0, 1], [0, 2],
-                    [1, 0], [1, 1], [1, 2],
-                    [2, 0], [2, 1], [2, 2]]
+        shouldbe = [
+            [0, 0],
+            [0, 1],
+            [0, 2],
+            [1, 0],
+            [1, 1],
+            [1, 2],
+            [2, 0],
+            [2, 1],
+            [2, 2],
+        ]
         for i, s in zip(it, shouldbe):
             self.assertListEqual(i, s)
 
     def test_string_compare(self):
-        a = 'abcdff'
-        b = 'abefff'
-        self.assertAlmostEqual(string_compare(a,b),2./3.)
+        a = "abcdff"
+        b = "abefff"
+        self.assertAlmostEqual(string_compare(a, b), 2.0 / 3.0)
 
 
 class SwapperTest(ut.TestCase):
@@ -94,13 +102,17 @@ class RotorTest(ut.TestCase):
 class EnigmaTest(ut.TestCase):
     charset = string.ascii_lowercase
     n_chars = len(charset)
-    test_message = 'thisisaverymeaninglesstestmessagebutititsmorethentwentysixcharacterslong'
+    test_message = (
+        "thisisaverymeaninglesstestmessagebutititsmorethentwentysixcharacterslong"
+    )
 
     def test_encrypt_decrypt(self):
         plugboard = enigma.Swapper(n_positions=self.n_chars)
         plugboard.assign_random_swaps(n_swaps=10, seed=41)
         rotor_seeds = [21, 32, 34]
-        rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
+        rotors = [
+            enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds
+        ]
         reflector = enigma.Swapper(n_positions=self.n_chars)
         reflector.assign_random_swaps(n_swaps=self.n_chars // 2, seed=3)
 
@@ -125,30 +137,36 @@ class CrackEnigmaCommon:
         self.reflector.assign_random_swaps(n_swaps=self.n_chars // 2, seed=3)
 
         rotor_seeds = list(range(n_rotors))
-        self.rotors = [enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds]
+        self.rotors = [
+            enigma.Rotor(n_positions=self.n_chars, seed=seed) for seed in rotor_seeds
+        ]
         self.rotor_positions = n_rotors * [15]
 
         self.plugboard = enigma.Swapper(n_positions=self.n_chars)
         self.plugboard.assign_random_swaps(n_swaps=n_plugs, seed=41)
 
-        message = "The Enigma machine is a cipher device developed and used in the early- to mid-20th century to protect" \
-                  " commercial, diplomatic, and military communication. It was employed extensively by Nazi Germany during " \
-                  "World War II, in all branches of the German military. The Germans believed, erroneously, that use of the" \
-                  " Enigma machine enabled them to communicate securely and thus enjoy a huge advantage in World War II. " \
-                  "The Enigma machine was considered to be so secure that even the most top-secret messages were enciphered" \
-                  " on its electrical circuits. Enigma has an electromechanical rotor mechanism that scrambles the 26 letters " \
-                  "of the alphabet. In typical use, one person enters text on the Enigma's keyboard and another person writes" \
-                  " down which of 26 lights above the keyboard lights up at each key press. If plain text is entered, the " \
-                  "lit-up letters are the encoded ciphertext. Entering ciphertext transforms it back into readable plaintext. " \
-                  "The rotor mechanism changes the electrical connections between the keys and the lights with each keypress. " \
-                  "The security of the system depends on a set of machine settings that were generally changed daily during the " \
-                  "war, based on secret key lists distributed in advance, and on other settings that were changed for " \
-                  "each message. The receiving station has to know and use the exact settings employed by the transmitting " \
-                  "station to successfully decrypt a message."
+        message = (
+            "The Enigma machine is a cipher device developed and used in the early- to mid-20th century to protect"
+            " commercial, diplomatic, and military communication. It was employed extensively by Nazi Germany during "
+            "World War II, in all branches of the German military. The Germans believed, erroneously, that use of the"
+            " Enigma machine enabled them to communicate securely and thus enjoy a huge advantage in World War II. "
+            "The Enigma machine was considered to be so secure that even the most top-secret messages were enciphered"
+            " on its electrical circuits. Enigma has an electromechanical rotor mechanism that scrambles the 26 letters "
+            "of the alphabet. In typical use, one person enters text on the Enigma's keyboard and another person writes"
+            " down which of 26 lights above the keyboard lights up at each key press. If plain text is entered, the "
+            "lit-up letters are the encoded ciphertext. Entering ciphertext transforms it back into readable plaintext. "
+            "The rotor mechanism changes the electrical connections between the keys and the lights with each keypress. "
+            "The security of the system depends on a set of machine settings that were generally changed daily during the "
+            "war, based on secret key lists distributed in advance, and on other settings that were changed for "
+            "each message. The receiving station has to know and use the exact settings employed by the transmitting "
+            "station to successfully decrypt a message."
+        )
         message = message.lower()
-        self.message_full = ''.join(c for c in message if c.islower())
+        self.message_full = "".join(c for c in message if c.islower())
 
-        encoder = enigma.Enigma(self.rotors, self.plugboard, self.reflector, charset=self.charset)
+        encoder = enigma.Enigma(
+            self.rotors, self.plugboard, self.reflector, charset=self.charset
+        )
         encoder.set_rotor_positions(self.rotor_positions)
         self.message = self.message_full[:len_msg]
         self.encrypted_message = encoder.encode_message(self.message)
@@ -158,33 +176,37 @@ class CrackEnigmaCommon:
 
 
 class CrackEnigmaSuccessiveBestTest(ut.TestCase, CrackEnigmaCommon):
-
     def test_diad_cracking(self):
-        self.check_crack_with_grouplikelihood('diads')
+        self.check_crack_with_grouplikelihood("diads")
 
     def test_triad_cracking(self):
-        self.check_crack_with_grouplikelihood('triads')
+        self.check_crack_with_grouplikelihood("triads")
 
     def testquad_cracking(self):
-        self.check_crack_with_grouplikelihood('quads')
+        self.check_crack_with_grouplikelihood("quads")
 
     def check_crack_with_grouplikelihood(self, groupname: str):
         n_plugs = 2
         n_rotors = 2
         self.setup_enigma_and_msg(100, n_rotors, n_plugs)
 
-        with open('./language_stats.dill', 'rb') as read_file:
+        with open("./language_stats.dill", "rb") as read_file:
             group_likelihood = dill.load(read_file)[groupname]
         scorer = crack_enigma.GroupLikelihoodScorer(group_likelihood)
 
-        decrypted_msg, decoded_pos, decoder_plugboard = \
-            crack_enigma.decode_message_successive_best(self.encrypted_message,
-                                                        self.rotors,
-                                                        n_plugs,
-                                                        self.reflector,
-                                                        scorer,
-                                                        charset=self.charset,
-                                                        disable_tqdm=True)
+        (
+            decrypted_msg,
+            decoded_pos,
+            decoder_plugboard,
+        ) = crack_enigma.decode_message_successive_best(
+            self.encrypted_message,
+            self.rotors,
+            n_plugs,
+            self.reflector,
+            scorer,
+            charset=self.charset,
+            disable_tqdm=True,
+        )
 
         self.assertListEqual(self.rotor_positions, decoded_pos)
         self.assertDictEqual(self.plugboard.swap_dict, decoder_plugboard.swap_dict)
@@ -198,21 +220,23 @@ class CrackEnigmaMCTest(ut.TestCase, CrackEnigmaCommon):
         n_rotors = 1
         self.setup_enigma_and_msg(200, n_rotors, n_plugs)
 
-        with open('./language_stats.dill', 'rb') as read_file:
-            group_likelihood = dill.load(read_file)['triads']
+        with open("./language_stats.dill", "rb") as read_file:
+            group_likelihood = dill.load(read_file)["triads"]
         scorer = crack_enigma.GroupLikelihoodScorer(group_likelihood)
 
-        decrypted_msg, decoded_pos, decoder_plugboard = \
-            crack_enigma.decode_message_MC(self.encrypted_message,
-                                           self.rotors,
-                                           n_plugs,
-                                           self.reflector, scorer,
-                                           charset=self.charset,
-                                           score_scale=0.2,
-                                           n_attempts_per_block=100,
-                                           max_n_blocks=100)
+        decrypted_msg, decoded_pos, decoder_plugboard = crack_enigma.decode_message_MC(
+            self.encrypted_message,
+            self.rotors,
+            n_plugs,
+            self.reflector,
+            scorer,
+            charset=self.charset,
+            score_scale=0.2,
+            n_attempts_per_block=100,
+            max_n_blocks=100,
+        )
         self.assertGreater(string_compare(decrypted_msg, self.message), 0.85)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     ut.main()

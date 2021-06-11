@@ -47,7 +47,9 @@ class Rotor:
         positions = np.arange(self.n_positions)
         rng = np.random.default_rng(seed)
         connected_forward = rng.permutation(positions)
-        connected_backwards = np.array([np.where(connected_forward == pos) for pos in positions]).squeeze()
+        connected_backwards = np.array(
+            [np.where(connected_forward == pos) for pos in positions]
+        ).squeeze()
 
         # the actual wiring, i.e. the relative difference between the connections on the in-side and the out-side
         self.forward_adds = connected_forward - positions
@@ -94,9 +96,9 @@ class Swapper:
     def move_one_swap_side(self, move_from: int, move_to: int, sanity_checks=True):
         if sanity_checks:
             if move_from not in self.swap_dict.keys():
-                raise ValueError('move_from was not part of a swap before moving')
+                raise ValueError("move_from was not part of a swap before moving")
             if move_to in self.swap_dict.keys():
-                raise ValueError('move_to is already taken')
+                raise ValueError("move_to is already taken")
 
         # set the new connection
         self.set_element_swap(self.swap_dict[move_from], move_to)
@@ -117,7 +119,13 @@ class Swapper:
 
 
 class Enigma:
-    def __init__(self, rotors, plugboard: Swapper, reflector: Swapper, charset: str = string.ascii_uppercase):
+    def __init__(
+        self,
+        rotors,
+        plugboard: Swapper,
+        reflector: Swapper,
+        charset: str = string.ascii_uppercase,
+    ):
         self.charset = charset
         n_chars = len(charset)
 
@@ -127,15 +135,21 @@ class Enigma:
 
         rotor_lengths = np.array([rot.n_positions for rot in rotors])
         if not np.all(rotor_lengths == n_chars):
-            raise ValueError('rotors do not have same number of positions as the chosen character set')
+            raise ValueError(
+                "rotors do not have same number of positions as the chosen character set"
+            )
         self.rotors = rotors
 
         if not plugboard.n_positions == n_chars:
-            raise ValueError('plug board does not have the same number of positions as the character set')
+            raise ValueError(
+                "plug board does not have the same number of positions as the character set"
+            )
         self.plug_board = plugboard
 
         if not reflector.n_positions == n_chars:
-            raise ValueError('reflector does not have the same number of positions as the character set')
+            raise ValueError(
+                "reflector does not have the same number of positions as the character set"
+            )
         self.reflector = reflector
 
     def set_rotor_positions(self, positions):

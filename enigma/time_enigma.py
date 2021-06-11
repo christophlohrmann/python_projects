@@ -18,16 +18,17 @@ reflector = enigma.Swapper(n_positions=n_chars, n_swaps=n_chars // 2, seed=3)
 encoder = enigma.Enigma(rotors, plugboard, reflector, charset=charset)
 rotor_positions = [3, 4, 7]
 
-messages = [''.join(random.choices(charset, k=chars_per_message)) for _ in range(n_messages)]
+messages = [
+    "".join(random.choices(charset, k=chars_per_message)) for _ in range(n_messages)
+]
 tick = time.time()
 for message in tqdm.tqdm(messages):
     encoder.set_rotor_positions(rotor_positions)
     encoded_message = encoder.encode_message(message)
 tock = time.time()
 
-avg_time = (tock-tick)/n_messages
+avg_time = (tock - tick) / n_messages
 
-print(f'Average encoding time for message with {chars_per_message} characters: {avg_time:.2e} seconds')
-
-
-
+print(
+    f"Average encoding time for message with {chars_per_message} characters: {avg_time:.2e} seconds"
+)
