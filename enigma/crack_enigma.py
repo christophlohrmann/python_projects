@@ -1,7 +1,5 @@
 import collections
 import math
-
-import baseconvert
 import string
 import numpy as np
 import copy
