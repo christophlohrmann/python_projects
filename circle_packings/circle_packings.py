@@ -69,7 +69,7 @@ def produce_data():
     results_dicts = []
 
     modes = ["rsa", "overlapping"]
-    pack_fracs = [0.2, 0.5]  # the free volume
+    pack_fracs = [0.2, 0.5]
     particle_radius = 1
     test_radii = np.linspace(0.01, 3, num=100)
     n_partcls = 1000
